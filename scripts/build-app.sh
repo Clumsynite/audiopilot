@@ -14,6 +14,7 @@ rm -rf build/AudioPilot.app && mkdir -p build/AudioPilot.app/Contents/{MacOS,Res
 cp "$BIN_DIR/AudioPilot" build/AudioPilot.app/Contents/MacOS/AudioPilot
 PLIST=build/AudioPilot.app/Contents/Info.plist
 cp Resources/Info.plist "$PLIST"
+cp Resources/AppIcon.icns build/AudioPilot.app/Contents/Resources/AppIcon.icns
 VERSION="${VERSION:-$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)}"
 BUILD_NUMBER="${BUILD_NUMBER:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$PLIST"

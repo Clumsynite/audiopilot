@@ -1,3 +1,5 @@
+<img src="docs/icon.png" width="96" align="right" alt="AudioPilot icon">
+
 # AudioPilot
 
 [![CI](https://github.com/Clumsynite/audiopilot/actions/workflows/ci.yml/badge.svg)](https://github.com/Clumsynite/audiopilot/actions/workflows/ci.yml)

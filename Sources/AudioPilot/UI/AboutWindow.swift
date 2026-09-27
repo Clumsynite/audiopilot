@@ -43,7 +43,7 @@ struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            AppGlyph(size: 80, theme: model.theme)
+            appIcon
                 .padding(.top, 18)
             VStack(spacing: 4) {
                 Text("AudioPilot").font(.system(size: 26, weight: .bold, design: .rounded))
@@ -83,6 +83,16 @@ struct AboutView: View {
         }
         .padding(.horizontal, 28)
         .frame(width: 460)
+    }
+
+    /// The bundled app icon; the drawn glyph when running unbundled (`swift run`).
+    @ViewBuilder
+    private var appIcon: some View {
+        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"), let image = NSImage(contentsOf: url) {
+            Image(nsImage: image).resizable().frame(width: 96, height: 96)
+        } else {
+            AppGlyph(size: 80, theme: model.theme)
+        }
     }
 
     private func feature(_ symbol: String, _ text: String) -> some View {
