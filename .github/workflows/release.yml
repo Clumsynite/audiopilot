@@ -1,0 +1,94 @@
+name: Release
+
+# Push a tag like v0.2.0 (scripts/bump-version.sh does this) to publish a GitHub Release
+# with a .dmg and .zip. Signing and notarization run only when the secrets below are set;
+# otherwise the app is ad-hoc signed and users approve it once in System Settings.
+#
+# Optional secrets:
+#   DEVELOPER_ID_P12           base64 of a "Developer ID Application" certificate (.p12)
+#   DEVELOPER_ID_P12_PASSWORD  its password
+#   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD   for notarytool
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: xcode-27
+    env:
+      HAS_CERT: ${{ secrets.DEVELOPER_ID_P12 != '' }}
+      HAS_NOTARY: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check tag matches Info.plist
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PLIST="$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)"
+          if [[ "$TAG" != "$PLIST" ]]; then
+            echo "::error::Tag v$TAG doesn't match Info.plist version $PLIST. Use scripts/bump-version.sh."
+            exit 1
+          fi
+          echo "VERSION=$TAG" >> "$GITHUB_ENV"
+
+      - name: Test
+        run: swift test
+
+      - name: Import Developer ID certificate
+        if: env.HAS_CERT == 'true'
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security list-keychain -d user -s "$KEYCHAIN"
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" | awk -F'"' '/Developer ID Application/ {print $2; exit}')"
+          echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+
+      - name: Build app
+        run: scripts/build-app.sh
+
+      - name: Notarize app
+        if: env.HAS_CERT == 'true' && env.HAS_NOTARY == 'true'
+        run: |
+          ditto -c -k --keepParent build/AudioPilot.app "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --wait \
+            --apple-id "${{ secrets.APPLE_ID }}" --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+            --password "${{ secrets.APPLE_APP_PASSWORD }}"
+          xcrun stapler staple build/AudioPilot.app
+
+      - name: Package
+        run: scripts/package.sh
+
+      - name: Notarize disk image
+        if: env.HAS_CERT == 'true' && env.HAS_NOTARY == 'true'
+        run: |
+          codesign --force --sign "$SIGN_IDENTITY" --timestamp dist/AudioPilot-$VERSION.dmg
+          xcrun notarytool submit dist/AudioPilot-$VERSION.dmg --wait \
+            --apple-id "${{ secrets.APPLE_ID }}" --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+            --password "${{ secrets.APPLE_APP_PASSWORD }}"
+          xcrun stapler staple dist/AudioPilot-$VERSION.dmg
+          (cd dist && shasum -a 256 AudioPilot-$VERSION.dmg AudioPilot-$VERSION.zip > SHA256SUMS.txt)
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SIGNED="ad-hoc signed — on first launch approve it in System Settings › Privacy & Security (see README)"
+          if [[ "$HAS_CERT" == "true" && "$HAS_NOTARY" == "true" ]]; then SIGNED="signed and notarized"; fi
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "AudioPilot $VERSION" \
+            --generate-notes \
+            --notes "**Install:** download \`AudioPilot-$VERSION.dmg\`, open it and drag AudioPilot to Applications. This build is $SIGNED."

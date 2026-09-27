@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>AudioPilot</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.techenable.audiopilot</string>
+	<key>CFBundleName</key>
+	<string>AudioPilot</string>
+	<key>CFBundleDisplayName</key>
+	<string>AudioPilot</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.techenable.audiopilot</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>audiopilot</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>AudioPilot connects and disconnects your Bluetooth headphones when you ask it to.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>AudioPilot reads your Wi-Fi network name to switch device profiles automatically. Your location is never used.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>AudioPilot reads your Wi-Fi network name to switch device profiles automatically. Your location is never used.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AudioPilot manages which microphone is active and mutes it on demand.</string>
+</dict>
+</plist>

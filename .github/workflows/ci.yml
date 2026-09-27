@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    # Xcode 27 image (macOS 26 SDK APIs such as Liquid Glass). Switch to macos-26 if you prefer the GA image.
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # build number = commit count
+
+      - name: Toolchain
+        run: swift --version && xcodebuild -version
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
+
+      - name: Build app bundle
+        run: scripts/build-app.sh
+
+      - name: Package
+        run: scripts/package.sh
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioPilot-${{ github.sha }}
+          path: dist/*
+          retention-days: 14
