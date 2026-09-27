@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDisplayName</key>
+	<string>AudioPilot</string>
 	<key>CFBundleExecutable</key>
 	<string>AudioPilot</string>
 	<key>CFBundleIconFile</key>
@@ -10,20 +12,10 @@
 	<string>com.techenable.audiopilot</string>
 	<key>CFBundleName</key>
 	<string>AudioPilot</string>
-	<key>CFBundleDisplayName</key>
-	<string>AudioPilot</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.0</string>
-	<key>CFBundleVersion</key>
-	<string>1</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>14.0</string>
-	<key>LSUIElement</key>
-	<true/>
-	<key>NSHighResolutionCapable</key>
-	<true/>
+	<string>0.1.1</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -35,8 +27,16 @@
 			</array>
 		</dict>
 	</array>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>AudioPilot connects and disconnects your Bluetooth headphones when you ask it to.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
 	<key>NSLocationUsageDescription</key>
 	<string>AudioPilot reads your Wi-Fi network name to switch device profiles automatically. Your location is never used.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
