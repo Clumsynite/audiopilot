@@ -20,7 +20,9 @@ esac
 git rev-parse "v$NEW" >/dev/null 2>&1 && { echo "error: tag v$NEW already exists" >&2; exit 1; }
 
 plutil -replace CFBundleShortVersionString -string "$NEW" "$PLIST"
-git add "$PLIST"
+# Keep the README version badge in step.
+sed -i '' -E "s#badge/version-[0-9]+\.[0-9]+\.[0-9]+-blue#badge/version-$NEW-blue#" README.md
+git add "$PLIST" README.md
 git commit -m "Release v$NEW"
 git tag -a "v$NEW" -m "AudioPilot v$NEW"
 echo "Bumped $CURRENT → $NEW and tagged v$NEW."
