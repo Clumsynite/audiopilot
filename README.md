@@ -24,7 +24,10 @@ Bluetooth headsets out of low-quality "call mode", and mutes every mic with one 
 **Devices**
 - Auto-switches input and output by a priority list it learns from your choices; new devices take over when connected.
 - Blocks Bluetooth mics by default, so AirPods keep high-quality audio; allow one with a click.
-- Per-app rules (e.g. "use the USB headset while Zoom is running") and profiles (Home, Office…) that can follow your Wi-Fi network.
+- Per-app rules (e.g. "use the USB headset while Zoom is running", or "…whenever any app starts using the mic") and
+  profiles (Home, Office…) that can follow your Wi-Fi network.
+- Per-app audio: give an app its own output device and volume (music on the speakers while calls stay on the
+  headset), from the panel or Settings › App Audio. macOS 14.2+.
 - Rename devices, change their icons, hide the ones you never use, set sample rate and balance.
 - Bluetooth battery levels, one-click connect for paired headphones, multi-output groups, and scripts that run when a device connects.
 
@@ -32,12 +35,14 @@ Bluetooth headsets out of low-quality "call mode", and mutes every mic with one 
 - ⌘⇧M mutes every physical mic (toggle or push-to-talk), with a glass on-screen indicator that names the mic.
 - Also mute with the Globe key or a mouse button, pressing an AirPods stem (experimental), or automatically when a call starts.
 - Shows which app is using the mic; warns when another app changes your mute; optional Zoom/Teams mute-button sync.
+- Optional live input level in the menu bar icon during calls, so you can see the mic is live.
 - Mute stays applied when you switch devices, plug in a new mic, or wake the Mac.
 
 **Everywhere**
 - ⌘K command palette (or just start typing in the panel), global shortcuts for next input/output or any specific device.
 - Spotlight and Shortcuts app actions: "Mute Microphone", "Switch Audio Device", "Next Output Device"…
 - `audiopilot://` links for Shortcuts, Raycast, Alfred, Stream Deck and scripts.
+- Export and import all settings and profiles as a file (Settings › General › Backup) to move them to another Mac.
 
 <p align="center">
   <img src="docs/screenshots/hud-muted.png" width="340" alt="Mute indicator">
@@ -66,7 +71,8 @@ xattr -dr com.apple.quarantine /Applications/AudioPilot.app
 
 | Feature | Permission |
 |---|---|
-| Level meter, AirPods stem mute | Microphone |
+| Level meter (panel or menu bar), AirPods stem mute | Microphone |
+| Per-app output and volume | System Audio Recording |
 | Globe key / mouse button mute | Input Monitoring |
 | Zoom / Teams mute sync | Accessibility |
 | Connect Bluetooth headphones | Bluetooth |
@@ -127,6 +133,7 @@ open build/AudioPilot.app
 BIN=$(swift build --show-bin-path)/AudioPilot
 $BIN --list-devices                      # device table (defaults, mute, volume)
 $BIN --mic-users                         # apps using the mic right now
+$BIN --app-audio                         # apps with audio clients, and which are playing
 $BIN --dry-run --dry-run-seconds 5       # run the engine and print the switches it would make
 $BIN --dry-run --test-mute               # how each mic would be muted
 $BIN --dry-run --show-panel              # preview UI: also --show-palette, --show-settings <pane>, --show-about, --show-hud muted|live|switch
@@ -170,3 +177,8 @@ To ship signed and notarized builds (no Gatekeeper prompt), add these repository
 - The orange mic-in-use dot stays on while muted; only the app capturing audio can clear it.
 - Apps that open a Bluetooth mic directly (not via the default input) can still switch a headset to call quality.
 - Teams sync toggles with ⌘⇧M and can drift if you also mute inside Teams.
+- Per-app audio starts within about a second of an app starting to play, so the very start of a sound can play
+  unchanged. It can't send an app to a multi-output group, and macOS may show a recording indicator while an app
+  is rerouted (AudioPilot captures the app's sound to replay it). If AudioPilot quits, apps play normally again.
+- The menu bar level meter opens the default input while another app is using the mic; if that app uses a
+  different mic, the meter shows the default one.

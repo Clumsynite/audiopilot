@@ -33,6 +33,8 @@
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>AudioPilot plays an app's sound through the output device and at the volume you choose for it.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>AudioPilot connects and disconnects your Bluetooth headphones when you ask it to.</string>
 	<key>NSHighResolutionCapable</key>

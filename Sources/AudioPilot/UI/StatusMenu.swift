@@ -1,5 +1,6 @@
 import AppKit
 import AudioPilotCore
+import Combine
 
 /// The menu bar item. Left click opens the glass panel, right click (or ⌃-click) shows a quick menu,
 /// ⌥-click toggles mute.
@@ -9,6 +10,9 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     private let menu = NSMenu()
     var openSettings: (() -> Void)?
     var togglePanel: (() -> Void)?
+    /// Bars lit in the level icon (0…3); the icon is redrawn only when this changes.
+    private var levelBars = 0
+    private var levelSubscription: AnyCancellable?
 
     init(model: AppModel) {
         self.model = model
@@ -21,7 +25,20 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         }
         model.engine.observe { [weak self] in self?.updateIcon() }
         model.mute.observe { [weak self] in self?.updateIcon() }
+        levelSubscription = model.$micLevel.sink { [weak self] level in self?.levelChanged(level) }
         updateIcon()
+    }
+
+    /// Whether the icon shows the live input level: turned on, unmuted, and an app is using the mic.
+    private var showsLevel: Bool {
+        model.prefs.menuBarLevel && !model.mute.isMuted && !model.micUsers.isEmpty
+    }
+
+    private func levelChanged(_ level: Float) {
+        let bars = level >= 0.72 ? 3 : level >= 0.55 ? 2 : level >= 0.35 ? 1 : 0
+        guard bars != levelBars else { return }
+        levelBars = bars
+        if showsLevel { updateIcon() }
     }
 
     /// The button's frame in screen coordinates, for positioning the panel.
@@ -58,6 +75,8 @@ final class StatusMenu: NSObject, NSMenuDelegate {
             image = (NSImage(systemSymbolName: "mic.badge.xmark", accessibilityDescription: "Some microphones can't be muted")
                 ?? NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: nil))
             image?.isTemplate = true
+        } else if showsLevel {
+            image = Self.levelIcon(bars: levelBars)
         } else {
             let paused = !model.prefs.autoSwitchEnabled
             image = NSImage(systemSymbolName: paused ? "mic" : "mic.fill", accessibilityDescription: "Microphone on")
@@ -68,6 +87,26 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         button.alphaValue = alpha
         // e.g. "AudioPilot — All microphones muted" + one line per mic, marking the active one.
         button.toolTip = (["AudioPilot — \(model.muteHeadline)"] + model.muteDetailLines).joined(separator: "\n")
+    }
+
+    /// Mic glyph with three level bars beside it; unlit bars stay faintly visible.
+    private static func levelIcon(bars: Int) -> NSImage {
+        let size = NSSize(width: 20, height: 16)
+        let image = NSImage(size: size, flipped: false) { _ in
+            let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+            if let mic = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: nil)?.withSymbolConfiguration(config) {
+                mic.draw(in: NSRect(x: 0, y: (size.height - mic.size.height) / 2, width: mic.size.width, height: mic.size.height))
+            }
+            for (i, height) in [CGFloat(6), 10, 14].enumerated() {
+                NSColor.black.withAlphaComponent(i < bars ? 1 : 0.25).setFill()
+                let rect = NSRect(x: 12 + CGFloat(i) * 3, y: (size.height - height) / 2, width: 2, height: height)
+                NSBezierPath(roundedRect: rect, xRadius: 1, yRadius: 1).fill()
+            }
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "Microphone on, input level"
+        return image
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {

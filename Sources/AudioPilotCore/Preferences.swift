@@ -159,8 +159,12 @@ extension Preferences {
 
 public struct AppRule: Equatable, Sendable, Codable, Identifiable {
     public enum Trigger: String, Codable, Sendable, CaseIterable {
-        case running, frontmost
+        /// While the app is open, while it's in front, or while it's capturing the microphone.
+        case running, frontmost, usingMic
     }
+
+    /// `bundleID` of a `.usingMic` rule that matches whichever app starts using the mic.
+    public static let anyApp = "*"
 
     public var id: UUID
     public var bundleID: String
@@ -261,6 +265,10 @@ public struct Preferences: Equatable, Sendable, Codable {
     public var airPodsMute: Bool = false
     /// Keep meeting apps' own mute buttons in sync (needs Accessibility permission).
     public var meetingSync: Bool = false
+    /// Live input level in the menu bar icon while an app is using the mic (needs microphone permission).
+    public var menuBarLevel: Bool = false
+    /// Per-app output device and volume (needs System Audio Recording permission).
+    public var appAudio: [AppAudioSetting] = []
 
     public init() {}
 
@@ -286,6 +294,7 @@ public struct Preferences: Equatable, Sendable, Codable {
         case paletteHotkey, theme, startMuted, muteOnLock, showMutedOverlay, announceSwitches
         case deviceShortcuts, spotlightEnabled, deviceSettings, notifyExternalMuteChanges, autoMuteOnCallStart, autoMuteApps
         case profiles, activeProfileID, outputGroups, extraTrigger, levelMeter, airPodsMute, meetingSync
+        case menuBarLevel, appAudio
     }
 
     // Tolerates missing keys so older or hand-edited files still load.
@@ -328,6 +337,8 @@ public struct Preferences: Equatable, Sendable, Codable {
         levelMeter = try c.decodeIfPresent(Bool.self, forKey: .levelMeter) ?? d.levelMeter
         airPodsMute = try c.decodeIfPresent(Bool.self, forKey: .airPodsMute) ?? d.airPodsMute
         meetingSync = try c.decodeIfPresent(Bool.self, forKey: .meetingSync) ?? d.meetingSync
+        menuBarLevel = try c.decodeIfPresent(Bool.self, forKey: .menuBarLevel) ?? d.menuBarLevel
+        appAudio = try c.decodeIfPresent([AppAudioSetting].self, forKey: .appAudio) ?? d.appAudio
     }
 }
 

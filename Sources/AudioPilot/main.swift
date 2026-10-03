@@ -16,6 +16,44 @@ if CommandLine.arguments.contains("--mic-users") {
     exit(0)
 }
 
+if CommandLine.arguments.contains("--app-audio") {
+    let processes = AudioHAL.audioProcesses()
+    let apps = Dictionary(grouping: processes, by: \.bundleID).sorted { $0.key < $1.key }
+    print(apps.isEmpty ? "No app has audio clients." : apps.map { id, procs in
+        "\(procs[0].name) (\(id)): \(procs.count) process\(procs.count == 1 ? "" : "es")\(procs.contains(where: \.isRunningOutput) ? ", playing" : "")"
+    }.joined(separator: "\n"))
+    exit(0)
+}
+
+// Plays one app through a process tap for a few seconds at the given volume, then hands it back.
+// Needs System Audio Recording permission (macOS asks the first time).
+if let i = CommandLine.arguments.firstIndex(of: "--test-tap"), CommandLine.arguments.count > i + 1 {
+    let args = CommandLine.arguments
+    let bundleID = args[i + 1]
+    let volume = args.count > i + 2 ? Float(args[i + 2]) ?? 0.3 : 0.3
+    let seconds = args.count > i + 3 ? Double(args[i + 3]) ?? 6 : 6
+    let processes = AudioHAL.audioProcesses().filter { $0.bundleID == bundleID }
+    guard !processes.isEmpty, let output = AudioHAL(dryRun: true).defaultUID(.output) else {
+        print("\(bundleID) has no audio clients (or there's no output device).")
+        exit(1)
+    }
+    print("permission: \(AudioCapturePermission.status), \(processes.count) process(es), output \(output)")
+    do {
+        let session = try TapSession(processes: processes.map(\.object).sorted(), outputUID: output,
+                                     name: "AudioPilot test", gain: volume * volume)
+        for second in 1...Int(seconds) {
+            RunLoop.main.run(until: Date().addingTimeInterval(1))
+            print("\(second)s alive=\(session.isAlive) peak=\(String(format: "%.3f", session.takePeak()))")
+        }
+        session.stop()
+        print("released")
+    } catch {
+        print("failed: \(error)")
+        exit(1)
+    }
+    exit(0)
+}
+
 if flags.testMute {
     guard flags.dryRun else {
         print("--test-mute requires --dry-run")

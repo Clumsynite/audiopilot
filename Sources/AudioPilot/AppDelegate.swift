@@ -20,6 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let bluetooth = BluetoothMonitor()
     private let extraTrigger = ExtraTriggerTap()
     private let levelMonitor = MicLevelMonitor()
+    /// Input the level meter opened; AVAudioEngine doesn't follow default-input changes by itself.
+    private var meterInput: String?
+    private var router: AppAudioRouter?
     private var lastSyncedMute: Bool?
     private let hud = HUD()
     private let overlay = MutedOverlay()
@@ -54,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mute.start(devices: engine.state.connected, pushToTalk: engine.prefs.hotkeyMode == .pushToTalk)
         observeSystemEvents()
         setUpDeviceEvents()
+        setUpAppAudio()
 
         if flags.dryRun {
             if let what = flags.showPanel { preview(what) }
@@ -71,6 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         // Mics stay muted on quit by design; the state file lets the next launch restore volumes.
+        router?.stop()
+        engine?.flushSave()
         hal?.removeSystemObservers()
         mute?.removeListeners()
         hotKey.unregisterAll()
@@ -127,8 +133,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engine.onAutoSwitch = { [weak self] dir, uid in self?.announce(dir, uid) }
         setUpMicFeatures(panel)
         mute.observe { [weak self] in self?.updateOverlay() }
-        engine.observe { [weak self] in self?.updateOverlay() }
+        engine.observe { [weak self] in
+            self?.updateOverlay()
+            self?.updateLevelMeter()
+        }
         updateOverlay()
+        model.onSettingsImported = { [weak self] in self?.settingsImported() }
 
         model.onProfileSwitch = { [weak self] profile in
             self?.hud.showSwitch(symbol: "rectangle.stack", title: profile.name, subtitle: "Profile")
@@ -229,10 +239,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.applyMicFeatures()
     }
 
+    /// The meter runs for the panel while it's open, and for the menu bar icon while an app is
+    /// using the mic (so it never turns the mic on by itself); never while muted.
     private func updateLevelMeter() {
-        let wanted = engine.prefs.levelMeter && !mute.isMuted && (panel?.isVisible ?? false) && !flags.dryRun
-        if wanted && !levelMonitor.isRunning { levelMonitor.start() }
+        let forPanel = engine.prefs.levelMeter && (panel?.isVisible ?? false)
+        let forMenuBar = engine.prefs.menuBarLevel && !model.micUsers.isEmpty
+        let wanted = (forPanel || forMenuBar) && !mute.isMuted && !flags.dryRun
+        let input = engine.state.current[.input]
+        if wanted && levelMonitor.isRunning && meterInput != input { levelMonitor.stop() }
+        if wanted && !levelMonitor.isRunning {
+            levelMonitor.start()
+            meterInput = input
+        }
         if !wanted && levelMonitor.isRunning { levelMonitor.stop() }
+    }
+
+    /// An imported settings file replaced everything: re-register shortcuts and re-apply features.
+    private func settingsImported() {
+        guard !flags.dryRun else { return }
+        model.applyHotKey(engine.prefs.hotkey)
+        model.applyPaletteHotKey(engine.prefs.paletteHotkey)
+        model.applyDeviceShortcuts()
+        model.extraTriggerActive = extraTrigger.start(engine.prefs.extraTrigger)
+        model.applyMicFeatures()
+        model.onProfilesChanged()
+        router?.reconcile()
     }
 
     private func feedback() {
@@ -289,6 +320,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         monitor.onChange = { [weak self] users, started in
             guard let self else { return }
             model.micUsers = users
+            engine.send(.micUsersChanged(users.map(\.bundleID)))
             guard !flags.dryRun, engine.prefs.autoMuteOnCallStart, !mute.isMuted else { return }
             let apps = engine.prefs.autoMuteApps
             if let trigger = started.first(where: { apps.isEmpty || apps.contains($0.bundleID) }) {
@@ -307,6 +339,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             bluetooth.setConnected(device, connect)
         }
         bluetooth.start()
+    }
+
+    /// Per-app output and volume. Dry runs list apps but never create taps.
+    private func setUpAppAudio() {
+        guard AppAudioRouter.isSupported else { return }
+        let router = AppAudioRouter(dryRun: flags.dryRun)
+        self.router = router
+        router.context = { [weak self] in
+            guard let self else { return ([], nil, []) }
+            return (engine.prefs.appAudio, engine.state.current[.output], engine.state.connected)
+        }
+        router.onChange = { [weak self, weak router] in
+            guard let self, let router else { return }
+            model.audioApps = router.apps
+            model.appAudioProblems = router.problems
+        }
+        model.applyAppAudio = { [weak router] in router?.reconcile() }
+        model.audioCaptureDenied = AudioCapturePermission.status == .denied
+        // Device and default-output changes can move a route.
+        engine.observe { [weak router] in router?.reconcile() }
+        router.start()
     }
 
     private func observeSystemEvents() {

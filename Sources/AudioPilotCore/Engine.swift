@@ -25,6 +25,14 @@ public struct EngineState: Equatable, Sendable {
     public var manualOverride: [Direction: String] = [:]
     public var running: [RunningApp] = []
     public var frontmost: String?
+    /// Bundle IDs of apps capturing the microphone right now.
+    public var micUsers: [String] = []
+    /// Apps that just stopped using the mic, kept until the deadline so a device switch
+    /// (which briefly stops capture) can't flip a mic rule off and on again.
+    public var micLinger: [String: Date] = [:]
+
+    /// Apps that count as using the mic for `.usingMic` rules.
+    public var micApps: Set<String> { Set(micUsers).union(micLinger.keys) }
 
     public init(prefs: Preferences = Preferences()) {
         self.prefs = prefs
@@ -37,6 +45,7 @@ public enum EngineEvent: Equatable, Sendable {
     case defaultChanged(Direction, String?)
     case userPicked(Direction, String)
     case appsChanged(running: [RunningApp], frontmost: String?)
+    case micUsersChanged([String])
     case wake
     case tick
     case setAllowAsMic(String, Bool)
@@ -45,6 +54,8 @@ public enum EngineEvent: Equatable, Sendable {
     case setAutoSwitch(Bool)
     case updateRules([AppRule])
     case switchProfile(UUID)
+    /// Replaces the settings with an imported file's (see `SettingsTransfer`).
+    case importPreferences(Preferences)
 }
 
 public enum EngineAction: Equatable, Sendable {
@@ -64,6 +75,7 @@ public struct Engine: Sendable {
     public static let enforceCap = 5
     public static let learnDelay: TimeInterval = 5
     public static let learnTickDelay: TimeInterval = 5.1
+    public static let micReleaseDelay: TimeInterval = 4
 
     public private(set) var state: EngineState
 
@@ -123,13 +135,21 @@ public struct Engine: Sendable {
             userPicked(dir, uid, now: now, into: &out)
 
         case let .appsChanged(running, frontmost):
-            let before = Direction.allCases.map { DevicePolicy.activeRule($0, in: state)?.id }
-            state.running = running
-            state.frontmost = frontmost
-            for (i, dir) in Direction.allCases.enumerated()
-            where DevicePolicy.activeRule(dir, in: state)?.id != before[i] {
-                state.manualOverride[dir] = nil
+            changeRuleContext {
+                $0.running = running
+                $0.frontmost = frontmost
             }
+            evaluate(now: now, into: &out)
+
+        case let .micUsersChanged(users):
+            changeRuleContext { state in
+                for gone in state.micUsers where !users.contains(gone) {
+                    state.micLinger[gone] = now.addingTimeInterval(Self.micReleaseDelay)
+                }
+                users.forEach { state.micLinger[$0] = nil }
+                state.micUsers = users
+            }
+            if !state.micLinger.isEmpty { out.append(.scheduleTick(after: Self.micReleaseDelay + 0.1)) }
             evaluate(now: now, into: &out)
 
         case .wake:
@@ -141,6 +161,7 @@ public struct Engine: Sendable {
             evaluate(now: now, into: &out)
 
         case .tick:
+            changeRuleContext { $0.micLinger = $0.micLinger.filter { $0.value > now } }
             for (dir, candidate) in state.learnCandidate
             where now.timeIntervalSince(candidate.at) >= Self.learnDelay
                 && (state.lastTopologyEvent.map { $0 < candidate.at } ?? true) {
@@ -184,12 +205,45 @@ public struct Engine: Sendable {
             out.append(.savePrefs)
             evaluate(now: now, into: &out)
 
+        case let .importPreferences(prefs):
+            let local = state.prefs.knownDevices
+            state.prefs = prefs
+            // Connected devices aren't "new" just because the file never saw them.
+            for dev in state.connected where state.prefs.knownDevices[dev.uid] == nil {
+                state.prefs.knownDevices[dev.uid] = local[dev.uid]
+                    ?? KnownDevice(dev, allowAsMic: !dev.transport.blocksMicByDefault, now: now)
+            }
+            state.manualOverride = [:]
+            state.learnCandidate = [:]
+            // Devices this Mac knows but the imported lists don't mention go after the imported order.
+            for dir in Direction.allCases {
+                let extra = state.connected
+                    .filter { $0.transport.isPhysical && $0.qualifies(for: dir) && !state.prefs.priority(dir).contains($0.uid) }
+                    .map(\.uid)
+                state.prefs.setPriority(dir, state.prefs.priority(dir) + extra)
+            }
+            _ = registerDevices(now: now)
+            out.append(.log("imported settings"))
+            out.append(.savePrefs)
+            evaluate(now: now, into: &out)
+
         case let .setAutoSwitch(enabled):
             state.prefs.autoSwitchEnabled = enabled
             out.append(.savePrefs)
             if enabled { evaluate(now: now, into: &out) }
         }
         return out
+    }
+
+    /// Applies a change to running apps or mic users; a manual pick made under one rule
+    /// doesn't carry over once a different rule (or none) is in charge.
+    private mutating func changeRuleContext(_ body: (inout EngineState) -> Void) {
+        let before = Direction.allCases.map { DevicePolicy.activeRule($0, in: state)?.id }
+        body(&state)
+        for (i, dir) in Direction.allCases.enumerated()
+        where DevicePolicy.activeRule(dir, in: state)?.id != before[i] {
+            state.manualOverride[dir] = nil
+        }
     }
 
     // MARK: - Targets
@@ -373,6 +427,11 @@ public struct Engine: Sendable {
             if r.inputUID == old { r.inputUID = new }
             if r.outputUID == old { r.outputUID = new }
             return r
+        }
+        state.prefs.appAudio = state.prefs.appAudio.map { setting in
+            var s = setting
+            if s.outputUID == old { s.outputUID = new }
+            return s
         }
     }
 }

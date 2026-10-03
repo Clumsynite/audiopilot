@@ -17,6 +17,7 @@ final class EngineController {
     /// Called for each device that appeared (true) or went away (false).
     var onDeviceConnection: ((AudioDeviceInfo, Bool) -> Void)?
     private var handlingUserPick = false
+    private var pendingSave: DispatchWorkItem?
 
     var state: EngineState { engine.state }
     var prefs: Preferences { engine.state.prefs }
@@ -63,6 +64,23 @@ final class EngineController {
         run(engine.editSettings(body))
     }
 
+    /// Edits settings now but saves only once edits pause, for sliders.
+    func editSettingsDeferred(_ body: (inout Preferences) -> Void) {
+        run(engine.editSettings(body).filter { $0 != .savePrefs })
+        pendingSave?.cancel()
+        let item = DispatchWorkItem { [weak self] in self?.flushSave() }
+        pendingSave = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: item)
+    }
+
+    /// Writes a deferred save now (e.g. on quit).
+    func flushSave() {
+        guard let item = pendingSave else { return }
+        item.cancel()
+        pendingSave = nil
+        run([.savePrefs])
+    }
+
     private func run(_ actions: [EngineAction]) {
         for action in actions {
             switch action {
@@ -77,6 +95,8 @@ final class EngineController {
             case let .setSystemOutput(uid):
                 if let error = hal.setSystemOutput(uid: uid) { record("error: \(error)") }
             case .savePrefs:
+                pendingSave?.cancel()
+                pendingSave = nil
                 if dryRun { print("DRYRUN savePrefs") } else { store.save(engine.state.prefs, name: "preferences") }
             case let .log(message):
                 if dryRun { print("DRYRUN \(message)") }

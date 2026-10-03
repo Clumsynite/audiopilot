@@ -131,8 +131,11 @@ final class AudioHAL {
         )
     }
 
+    /// Every device except the private ones AudioPilot creates to route app audio.
     func devices() -> [AudioDeviceInfo] {
-        Self.deviceIDs().compactMap(Self.info).sorted { $0.uid < $1.uid }
+        Self.deviceIDs().compactMap(Self.info)
+            .filter { !$0.uid.hasPrefix(TapSession.uidPrefix) }
+            .sorted { $0.uid < $1.uid }
     }
 
     static func id(forUID uid: String) -> AudioDeviceID? {

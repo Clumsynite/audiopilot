@@ -65,6 +65,9 @@ struct PanelView: View {
                     MicModule(model: model)
                     warnings
                     DeviceModule(model: model, dir: .output)
+                    if model.appAudioSupported && !model.panelAudioApps.isEmpty {
+                        AppAudioModule(model: model)
+                    }
                     DeviceModule(model: model, dir: .input)
                     actions
                 }
@@ -239,6 +242,91 @@ private struct DeviceModule: View {
         }
         .padding(10)
         .glassSurface(cornerRadius: 14)
+    }
+}
+
+// MARK: - App audio module
+
+/// Apps that are playing (or have a setting): volume, mute and output per app.
+private struct AppAudioModule: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Apps").font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Button("Settings") {
+                    model.settingsPane = .appAudio
+                    model.openSettings()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 4)
+            ForEach(model.panelAudioApps.prefix(6)) { app in
+                AppAudioPanelRow(model: model, app: app)
+            }
+        }
+        .padding(10)
+        .glassSurface(cornerRadius: 14)
+    }
+}
+
+private struct AppAudioPanelRow: View {
+    @ObservedObject var model: AppModel
+    let app: AppAudioRouter.App
+
+    var body: some View {
+        let setting = model.appAudio(app.bundleID)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                AppIcon(bundleID: app.bundleID, size: 18)
+                Text(app.name).font(.system(size: 12)).lineLimit(1)
+                    .frame(width: 74, alignment: .leading)
+                    .opacity(app.isPlaying ? 1 : 0.6)
+                Button { model.setAppMuted(app, !setting.muted) } label: {
+                    Image(systemName: setting.muted ? "speaker.slash.fill" : "speaker.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(setting.muted ? Color.red : Color.secondary)
+                        .frame(width: 14)
+                }
+                .buttonStyle(.plain)
+                .help(setting.muted ? "Unmute \(app.name)" : "Mute \(app.name)")
+                Slider(value: Binding(get: { Double(setting.volume) }, set: { model.setAppVolume(app, Float($0)) }), in: 0...1)
+                    .controlSize(.mini)
+                    .disabled(setting.muted)
+                    .help("\(app.name) volume")
+                outputMenu(setting)
+            }
+            if let problem = model.appAudioProblems[app.bundleID] {
+                Text(problem).font(.system(size: 10)).foregroundStyle(.orange).padding(.leading, 24)
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private func outputMenu(_ setting: AppAudioSetting) -> some View {
+        Menu {
+            Button { model.setAppOutput(app.bundleID, name: app.name, nil) } label: {
+                if setting.outputUID == nil { Label("System Output", systemImage: "checkmark") } else { Text("System Output") }
+            }
+            Divider()
+            ForEach(model.appAudioOutputs, id: \.uid) { dev in
+                Button { model.setAppOutput(app.bundleID, name: app.name, dev.uid) } label: {
+                    if setting.outputUID == dev.uid { Label(model.label(dev), systemImage: "checkmark") } else { Text(model.label(dev)) }
+                }
+            }
+        } label: {
+            Image(systemName: "hifispeaker")
+                .font(.system(size: 11))
+                .foregroundStyle(setting.outputUID == nil ? Color.secondary : model.theme.accent)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(setting.outputUID.map { "Plays on \(model.name($0))" } ?? "Plays on the system output")
     }
 }
 

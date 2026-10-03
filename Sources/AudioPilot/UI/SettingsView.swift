@@ -5,7 +5,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, appearance, devices, microphones, shortcuts, rules, profiles, about
+    case general, appearance, devices, microphones, appAudio, shortcuts, rules, profiles, about
 
     var id: String { rawValue }
 
@@ -15,6 +15,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: "Appearance"
         case .devices: "Devices"
         case .microphones: "Microphones"
+        case .appAudio: "App Audio"
         case .shortcuts: "Shortcuts"
         case .rules: "App Rules"
         case .profiles: "Profiles"
@@ -28,6 +29,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: "paintpalette.fill"
         case .devices: "hifispeaker.2.fill"
         case .microphones: "mic.fill"
+        case .appAudio: "slider.horizontal.3"
         case .shortcuts: "command"
         case .rules: "app.badge.fill"
         case .profiles: "rectangle.stack.fill"
@@ -41,6 +43,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: .pink
         case .devices: .blue
         case .microphones: .orange
+        case .appAudio: .red
         case .shortcuts: .purple
         case .rules: .green
         case .profiles: .indigo
@@ -74,6 +77,7 @@ struct SettingsView: View {
                 case .appearance: AppearancePane(model: model)
                 case .devices: DevicesPane(model: model)
                 case .microphones: MicrophonesPane(model: model)
+                case .appAudio: AppAudioPane(model: model)
                 case .shortcuts: ShortcutsPane(model: model)
                 case .rules: RulesPane(model: model)
                 case .profiles: ProfilesPane(model: model)
@@ -107,6 +111,8 @@ private struct GeneralPane: View {
             Section {
                 Toggle("Show live input level in the panel", isOn: Binding(
                     get: { model.prefs.levelMeter }, set: { model.setMicFeature(\.levelMeter, $0) }))
+                Toggle("Show live input level in the menu bar during calls", isOn: Binding(
+                    get: { model.prefs.menuBarLevel }, set: { model.setMicFeature(\.menuBarLevel, $0) }))
                 Toggle("Press the AirPods stem to mute (experimental)", isOn: Binding(
                     get: { model.prefs.airPodsMute }, set: { model.setMicFeature(\.airPodsMute, $0) }))
                 Toggle("Keep Zoom and Teams mute buttons in sync", isOn: Binding(
@@ -127,7 +133,7 @@ private struct GeneralPane: View {
             } header: {
                 Text("Advanced")
             } footer: {
-                Text("The meter opens the mic only while the panel is open and you're unmuted. AirPods stem presses reach AudioPilot most reliably while a call app is using the mic. Zoom sync uses its Meeting menu; Teams sync sends ⌘⇧M during calls and can drift if you also mute inside Teams.")
+                Text("The meter opens the mic only while the panel is open (or, for the menu bar, while another app is already using it) and you're unmuted. AirPods stem presses reach AudioPilot most reliably while a call app is using the mic. Zoom sync uses its Meeting menu; Teams sync sends ⌘⇧M during calls and can drift if you also mute inside Teams.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Feedback") {
@@ -161,6 +167,7 @@ private struct GeneralPane: View {
                     Text(model.loginError).font(.caption).foregroundStyle(.red)
                 }
             }
+            BackupSection(model: model)
             Section {
                 Text("If AudioPilot quits while muted, your microphones stay muted until you relaunch AudioPilot and unmute.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -582,7 +589,7 @@ private struct RulesPane: View {
                 VStack(spacing: 10) {
                     Image(systemName: "app.badge").font(.system(size: 34)).foregroundStyle(.secondary)
                     Text("No app rules yet").font(.headline)
-                    Text("A rule picks devices while an app is running or in front — e.g. use your USB headset whenever Zoom is open.")
+                    Text("A rule picks devices while an app is running, in front, or using the mic — e.g. use your USB headset whenever a call starts.")
                         .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: 360)
@@ -603,6 +610,11 @@ private struct RulesPane: View {
                 }
                 .fixedSize()
                 Button("Choose App…") { chooseApp() }
+                Button("Any App Using the Mic") {
+                    add(bundleID: AppRule.anyApp, name: "Any app using the mic", trigger: .usingMic)
+                }
+                .help("Picks devices whenever any app starts using the microphone, e.g. when a call starts")
+                .disabled(model.prefs.appRules.contains { $0.bundleID == AppRule.anyApp })
                 Spacer()
             }
             .padding(16)
@@ -616,9 +628,9 @@ private struct RulesPane: View {
             .sorted { $0.name < $1.name }
     }
 
-    private func add(bundleID: String, name: String) {
+    private func add(bundleID: String, name: String, trigger: AppRule.Trigger = .running) {
         guard !model.prefs.appRules.contains(where: { $0.bundleID == bundleID }) else { return }
-        model.engine.send(.updateRules(model.prefs.appRules + [AppRule(bundleID: bundleID, appName: name)]))
+        model.engine.send(.updateRules(model.prefs.appRules + [AppRule(bundleID: bundleID, appName: name, trigger: trigger)]))
     }
 
     private func chooseApp() {
@@ -640,9 +652,14 @@ private struct RuleRow: View {
         Section {
             devicePicker("Input", .input, \.inputUID)
             devicePicker("Output", .output, \.outputUID)
-            Picker("When", selection: binding(\.trigger)) {
-                Text("App is running").tag(AppRule.Trigger.running)
-                Text("App is in front").tag(AppRule.Trigger.frontmost)
+            if rule.bundleID == AppRule.anyApp {
+                LabeledContent("When", value: "Any app is using the mic")
+            } else {
+                Picker("When", selection: binding(\.trigger)) {
+                    Text("App is running").tag(AppRule.Trigger.running)
+                    Text("App is in front").tag(AppRule.Trigger.frontmost)
+                    Text("App is using the mic").tag(AppRule.Trigger.usingMic)
+                }
             }
         } header: {
             HStack {
@@ -659,7 +676,9 @@ private struct RuleRow: View {
 
     @ViewBuilder
     private var appIcon: some View {
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: rule.bundleID) {
+        if rule.bundleID == AppRule.anyApp {
+            Image(systemName: "mic.fill").frame(width: 18, height: 18)
+        } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: rule.bundleID) {
             Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().frame(width: 18, height: 18)
         }
     }
@@ -966,5 +985,175 @@ private struct NewGroupForm: View {
         }
         .padding(16)
         .frame(width: 300)
+    }
+}
+
+// MARK: - App audio
+
+private struct AppAudioPane: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        Form {
+            if !model.appAudioSupported {
+                Section {
+                    Text("Per-app audio needs macOS 14.2 or later.").foregroundStyle(.secondary)
+                }
+            } else {
+                if model.audioCaptureDenied {
+                    Section {
+                        HStack {
+                            Text("AudioPilot needs System Audio Recording permission to change an app's output or volume.")
+                                .font(.callout).foregroundStyle(.orange)
+                            Button("Open Settings") { NSWorkspace.shared.open(AudioCapturePermission.settingsURL) }
+                                .controlSize(.small)
+                        }
+                    }
+                }
+                let rows = entries
+                if rows.isEmpty {
+                    Section {
+                        Text("Apps appear here once they play sound. Give one its own output or volume, e.g. music on the speakers while calls stay on the headset.")
+                            .font(.callout).foregroundStyle(.secondary)
+                    }
+                }
+                ForEach(rows, id: \.bundleID) { entry in
+                    AppAudioRow(model: model, bundleID: entry.bundleID, name: entry.name)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .safeAreaInset(edge: .bottom) {
+            Text("AudioPilot captures the app's sound (macOS may show a recording indicator) and plays it to the device you pick, at the volume you set. Settings apply whenever the app plays; reset an app to hand it back to macOS.")
+                .font(.caption).foregroundStyle(.secondary)
+                .padding(.horizontal, 20).padding(.bottom, 12)
+        }
+    }
+
+    /// Apps with a setting, then other apps that are playing.
+    private var entries: [(bundleID: String, name: String)] {
+        let configured = model.prefs.appAudio.map { ($0.bundleID, $0.appName) }
+        let others = model.audioApps.filter { app in app.isPlaying && !configured.contains { $0.0 == app.bundleID } }
+            .map { ($0.bundleID, $0.name) }
+        return (configured + others).map { (bundleID: $0.0, name: $0.1) }
+    }
+}
+
+private struct AppAudioRow: View {
+    @ObservedObject var model: AppModel
+    let bundleID: String
+    let name: String
+
+    var body: some View {
+        let setting = model.appAudio(bundleID)
+        let configured = model.prefs.appAudio.contains { $0.bundleID == bundleID }
+        let app = AppAudioRouter.App(bundleID: bundleID, name: name, isPlaying: false)
+        Section {
+            Picker("Output", selection: Binding(get: { setting.outputUID },
+                                                set: { model.setAppOutput(bundleID, name: name, $0) })) {
+                Text("System output").tag(String?.none)
+                ForEach(model.appAudioOutputs, id: \.uid) { Text(model.label($0)).tag(String?.some($0.uid)) }
+                if let uid = setting.outputUID, !model.isConnected(uid) {
+                    Text("\(model.name(uid)) (offline)").tag(String?.some(uid))
+                }
+            }
+            LabeledContent("Volume") {
+                HStack {
+                    Button { model.setAppMuted(app, !setting.muted) } label: {
+                        Image(systemName: setting.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                    }
+                    .buttonStyle(.borderless)
+                    .help(setting.muted ? "Unmute" : "Mute")
+                    Slider(value: Binding(get: { Double(setting.volume) }, set: { model.setAppVolume(app, Float($0)) }), in: 0...1)
+                        .disabled(setting.muted)
+                    Text("\(Int((setting.volume * 100).rounded()))%").monospacedDigit().foregroundStyle(.secondary)
+                        .frame(width: 40, alignment: .trailing)
+                }
+            }
+            if let problem = model.appAudioProblems[bundleID] {
+                Text(problem).font(.caption).foregroundStyle(.orange)
+            }
+        } header: {
+            HStack {
+                AppIcon(bundleID: bundleID)
+                Text(name)
+                Text(status).font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                if configured {
+                    Button("Reset") { model.resetAppAudio(bundleID) }
+                        .buttonStyle(.borderless)
+                        .help("Play through the system output at full volume again")
+                }
+            }
+        }
+    }
+
+    private var status: String {
+        guard let app = model.audioApps.first(where: { $0.bundleID == bundleID }) else { return "Not running" }
+        return app.isPlaying ? "Playing" : "Idle"
+    }
+}
+
+// MARK: - Backup
+
+private struct BackupSection: View {
+    @ObservedObject var model: AppModel
+    @State private var message = ""
+    @State private var failed = false
+
+    var body: some View {
+        Section {
+            HStack {
+                Button("Export Settings…", action: exportSettings)
+                Button("Import Settings…", action: importSettings)
+                Spacer()
+            }
+            if !message.isEmpty {
+                Text(message).font(.caption).foregroundStyle(failed ? .red : .secondary)
+            }
+        } header: {
+            Text("Backup")
+        } footer: {
+            Text("Saves device priorities, app rules, profiles, per-app audio, shortcuts and appearance to a file you can import on another Mac. Devices this Mac knows are kept, and Launch at login stays as set on each Mac.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func exportSettings() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "AudioPilot Settings.json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try model.exportSettings(to: url)
+            report("Exported to \(url.lastPathComponent).", failed: false)
+        } catch {
+            report("Couldn't export: \(error.localizedDescription)", failed: true)
+        }
+    }
+
+    private func importSettings() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let alert = NSAlert()
+        alert.messageText = "Replace your AudioPilot settings?"
+        alert.informativeText = "Your current settings are replaced by the ones in “\(url.lastPathComponent)”. Export them first if you might want them back."
+        alert.addButton(withTitle: "Replace")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            try model.importSettings(from: url)
+            report("Imported \(url.lastPathComponent).", failed: false)
+        } catch let error as SettingsTransfer.ImportError {
+            report(error.description, failed: true)
+        } catch {
+            report("Couldn't import: \(error.localizedDescription)", failed: true)
+        }
+    }
+
+    private func report(_ text: String, failed: Bool) {
+        message = text
+        self.failed = failed
     }
 }

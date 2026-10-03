@@ -137,7 +137,9 @@ final class AppModel: ObservableObject {
         guard prefs.autoSwitchEnabled else { return "Auto-switch off" }
         let state = engine.state
         if state.manualOverride[dir] != nil { return "Your pick" }
-        if let rule = DevicePolicy.activeRule(dir, in: state) { return "For \(rule.appName)" }
+        if let rule = DevicePolicy.activeRule(dir, in: state) {
+            return rule.bundleID == AppRule.anyApp ? "Mic in use" : "For \(rule.appName)"
+        }
         return nil
     }
 
@@ -242,6 +244,85 @@ final class AppModel: ObservableObject {
         if on && !MeetingSync.trusted { MeetingSync.requestAccess() }
         edit { $0.meetingSync = on }
         applyMicFeatures()
+    }
+
+    // MARK: App audio (per-app output and volume)
+
+    /// Apps with audio clients, refreshed by the router.
+    @Published var audioApps: [AppAudioRouter.App] = []
+    /// Why an app's setting isn't applied right now, by bundle ID.
+    @Published var appAudioProblems: [String: String] = [:]
+    @Published var audioCaptureDenied = false
+    /// Wired by the AppDelegate: re-applies settings right away.
+    var applyAppAudio: () -> Void = {}
+
+    var appAudioSupported: Bool { AppAudioRouter.isSupported }
+
+    func appAudio(_ bundleID: String) -> AppAudioSetting {
+        prefs.appAudio.first { $0.bundleID == bundleID } ?? AppAudioSetting(bundleID: bundleID, appName: bundleID)
+    }
+
+    /// Apps for the panel: playing now, or running with a setting.
+    var panelAudioApps: [AppAudioRouter.App] {
+        audioApps.filter { app in app.isPlaying || prefs.appAudio.contains { $0.bundleID == app.bundleID } }
+    }
+
+    /// Output devices an app can be sent to (multi-output groups can't hold a tap).
+    var appAudioOutputs: [AudioDeviceInfo] {
+        devices(.output).filter { $0.transport != .aggregate }
+    }
+
+    func setAppVolume(_ app: AppAudioRouter.App, _ volume: Float) {
+        editAppAudio(app.bundleID, app.name, deferSave: true) { $0.volume = volume; $0.muted = false }
+    }
+
+    func setAppMuted(_ app: AppAudioRouter.App, _ muted: Bool) {
+        editAppAudio(app.bundleID, app.name) { $0.muted = muted }
+    }
+
+    func setAppOutput(_ bundleID: String, name: String, _ uid: String?) {
+        editAppAudio(bundleID, name) { $0.outputUID = uid }
+    }
+
+    func resetAppAudio(_ bundleID: String) {
+        edit { $0.appAudio.removeAll { $0.bundleID == bundleID } }
+        applyAppAudio()
+    }
+
+    private func editAppAudio(_ bundleID: String, _ name: String, deferSave: Bool = false,
+                              _ body: (inout AppAudioSetting) -> Void) {
+        let change: (inout Preferences) -> Void = { $0.appAudio.edit(bundleID, appName: name, body) }
+        if deferSave { engine.editSettingsDeferred(change) } else { edit(change) }
+        // The first rerouted app asks for System Audio Recording permission.
+        if !prefs.appAudio.isEmpty, AudioCapturePermission.status == .unknown, !requestedAudioCapture {
+            requestedAudioCapture = true
+            AudioCapturePermission.request { [weak self] granted in
+                self?.audioCaptureDenied = !granted
+                self?.applyAppAudio()
+            }
+        }
+        applyAppAudio()
+    }
+
+    private var requestedAudioCapture = false
+
+    // MARK: Settings backup
+
+    /// Wired by the AppDelegate: re-registers shortcuts and re-applies features after an import.
+    var onSettingsImported: () -> Void = {}
+
+    func exportSettings(to url: URL) throws {
+        engine.flushSave()
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        try SettingsTransfer.export(prefs, appVersion: version, now: Date()).write(to: url, options: .atomic)
+    }
+
+    func importSettings(from url: URL) throws {
+        let merged = try SettingsTransfer.importing(Data(contentsOf: url), into: prefs)
+        engine.send(.importPreferences(merged))
+        OutputGroups.ensure(merged.outputGroups, dryRun: engine.dryRun)
+        onSettingsImported()
+        refresh()
     }
 
     // MARK: Mute summary

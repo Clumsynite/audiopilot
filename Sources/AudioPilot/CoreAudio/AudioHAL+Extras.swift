@@ -63,9 +63,18 @@ extension AudioHAL {
         let name: String
     }
 
-    /// Regular apps currently capturing audio input (macOS 14.2+ process objects; needs no permission).
-    /// Helpers (e.g. "Google Chrome Helper") are attributed to their parent app via the running-apps list.
-    static func micUsers() -> [MicUser] {
+    /// An app's audio client: one per process (helpers such as "Google Chrome Helper" are separate
+    /// processes, attributed here to their regular app).
+    struct AudioProcess: Equatable {
+        let object: AudioObjectID
+        let bundleID: String
+        let name: String
+        let isRunningInput: Bool
+        let isRunningOutput: Bool
+    }
+
+    /// Processes of regular apps that have audio clients (macOS 14.2+ process objects; needs no permission).
+    static func audioProcesses() -> [AudioProcess] {
         var a = address(kAudioHardwarePropertyProcessObjectList)
         var size: UInt32 = 0
         guard AudioObjectGetPropertyDataSize(system, &a, 0, nil, &size) == noErr, size > 0 else { return [] }
@@ -73,21 +82,29 @@ extension AudioHAL {
         guard AudioObjectGetPropertyData(system, &a, 0, nil, &size, &objects) == noErr else { return [] }
 
         let me = ProcessInfo.processInfo.processIdentifier
+        let regular = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
+        return objects.compactMap { object in
+            guard let pid = get(object, address(kAudioProcessPropertyPID), pid_t(0)), pid != me,
+                  let app = owningApp(pid: pid, bundleID: string(object, kAudioProcessPropertyBundleID), regular: regular),
+                  let bundleID = app.bundleIdentifier else { return nil }
+            return AudioProcess(object: object, bundleID: bundleID, name: app.localizedName ?? bundleID,
+                                isRunningInput: bool(object, address(kAudioProcessPropertyIsRunningInput)),
+                                isRunningOutput: bool(object, address(kAudioProcessPropertyIsRunningOutput)))
+        }
+    }
+
+    /// Regular apps currently capturing audio input.
+    static func micUsers() -> [MicUser] {
         var users: [MicUser] = []
-        for object in objects {
-            guard bool(object, address(kAudioProcessPropertyIsRunningInput)),
-                  let pid = get(object, address(kAudioProcessPropertyPID), pid_t(0)), pid != me else { continue }
-            if let app = owningApp(pid: pid, bundleID: string(object, kAudioProcessPropertyBundleID)) {
-                let user = MicUser(bundleID: app.bundleIdentifier ?? "", name: app.localizedName ?? "An app")
-                if !users.contains(user) { users.append(user) }
-            }
+        for process in audioProcesses() where process.isRunningInput {
+            let user = MicUser(bundleID: process.bundleID, name: process.name)
+            if !users.contains(user) { users.append(user) }
         }
         return users
     }
 
     /// The regular (Dock) app for a pid or bundle ID, walking up from helper processes.
-    private static func owningApp(pid: pid_t, bundleID: String?) -> NSRunningApplication? {
-        let regular = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
+    private static func owningApp(pid: pid_t, bundleID: String?, regular: [NSRunningApplication]) -> NSRunningApplication? {
         if let app = regular.first(where: { $0.processIdentifier == pid }) { return app }
         if let bundleID {
             // "com.google.Chrome.helper" → "com.google.Chrome"
