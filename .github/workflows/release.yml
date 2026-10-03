@@ -1,7 +1,7 @@
 name: Release
 
 # Push a tag like v0.2.0 (scripts/bump-version.sh does this) to publish a GitHub Release
-# with a .dmg and .zip. Signing and notarization run only when the secrets below are set;
+# with a .dmg and .zip. The tag must be on main, and its CHANGELOG.md section becomes the notes. Signing and notarization run only when the secrets below are set;
 # otherwise the app is ad-hoc signed and users approve it once in System Settings.
 #
 # Optional secrets:
@@ -36,6 +36,24 @@ jobs:
             exit 1
           fi
           echo "VERSION=$TAG" >> "$GITHUB_ENV"
+
+      - name: Check tag is on main
+        run: |
+          git fetch --quiet origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME isn't on main. Merge first, then tag from main."
+            exit 1
+          fi
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          # The section from "## $VERSION" up to the next "## " heading.
+          awk -v v="$VERSION" 'index($0, "## " v) == 1 { on = 1; next } on && /^## / { exit } on' CHANGELOG.md \
+            > "$RUNNER_TEMP/changes.md"
+          if ! grep -q '[^[:space:]]' "$RUNNER_TEMP/changes.md"; then
+            echo "::error::CHANGELOG.md has no section for $VERSION."
+            exit 1
+          fi
 
       - name: Test
         run: swift test
@@ -88,7 +106,11 @@ jobs:
         run: |
           SIGNED="ad-hoc signed — on first launch approve it in System Settings › Privacy & Security (see README)"
           if [[ "$HAS_CERT" == "true" && "$HAS_NOTARY" == "true" ]]; then SIGNED="signed and notarized"; fi
+          {
+            echo "**Install:** download \`AudioPilot-$VERSION.dmg\`, open it and drag AudioPilot to Applications. This build is $SIGNED."
+            cat "$RUNNER_TEMP/changes.md"
+          } > "$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" dist/* \
             --title "AudioPilot $VERSION" \
             --generate-notes \
-            --notes "**Install:** download \`AudioPilot-$VERSION.dmg\`, open it and drag AudioPilot to Applications. This build is $SIGNED."
+            --notes-file "$RUNNER_TEMP/notes.md"

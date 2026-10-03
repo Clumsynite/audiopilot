@@ -66,6 +66,8 @@ xattr -dr com.apple.quarantine /Applications/AudioPilot.app
 ```
 
 **Updating:** quit AudioPilot, drag the new version over the old one, and open it again. Settings are kept.
+An ad-hoc signed update may ask again for permissions you already gave. What changed in each version is in
+[CHANGELOG.md](CHANGELOG.md).
 
 **Permissions** — AudioPilot only asks when you turn on a feature that needs one:
 
@@ -159,13 +161,21 @@ are copied over on first launch).
 
 ## Releasing
 
+Note user-facing changes under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md) as you go. Then, on `main`:
+
 ```sh
-scripts/bump-version.sh minor      # or patch / major / 1.4.0 — updates Info.plist, commits, tags vX.Y.Z
+scripts/bump-version.sh minor      # or patch / major / 1.4.0 — dates the CHANGELOG section, updates Info.plist
+                                   # and the README badge, commits, tags vX.Y.Z
 git push origin HEAD --follow-tags
 ```
 
-The tag starts the **Release** workflow, which tests, builds, packages `AudioPilot-X.Y.Z.dmg` + `.zip` with
-SHA-256 sums, and publishes a GitHub Release with generated notes. The build number is the commit count.
+The tag starts the **Release** workflow. It checks the tag is on `main` and matches `Info.plist`, tests, builds,
+packages `AudioPilot-X.Y.Z.dmg` + `.zip` with SHA-256 sums, and publishes a GitHub Release whose notes are the
+version's CHANGELOG section (plus a generated commit list). The build number is the commit count.
+
+**CI** runs on every push to any branch and on pull requests: build, unit tests, the app bundle, a check that
+`Info.plist` has every permission usage string and that the README badge and CHANGELOG match the version, a smoke
+run of the read-only diagnostics, and a downloadable `.dmg` artifact.
 
 To ship signed and notarized builds (no Gatekeeper prompt), add these repository secrets:
 `DEVELOPER_ID_P12` (base64 of a Developer ID Application `.p12`), `DEVELOPER_ID_P12_PASSWORD`, `APPLE_ID`,

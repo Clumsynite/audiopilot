@@ -2,8 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -29,6 +30,26 @@ jobs:
 
       - name: Build app bundle
         run: scripts/build-app.sh
+
+      - name: Check bundle and release metadata
+        run: |
+          PLIST=build/AudioPilot.app/Contents/Info.plist
+          # Every permission AudioPilot asks for needs its usage string, or macOS denies it silently.
+          for key in NSMicrophoneUsageDescription NSAudioCaptureUsageDescription NSBluetoothAlwaysUsageDescription \
+                     NSLocationWhenInUseUsageDescription; do
+            plutil -extract "$key" raw "$PLIST" >/dev/null || { echo "::error::Info.plist is missing $key"; exit 1; }
+          done
+          VERSION="$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)"
+          grep -q "badge/version-$VERSION-blue" README.md \
+            || { echo "::error::README version badge doesn't show $VERSION (use scripts/bump-version.sh)"; exit 1; }
+          grep -qE "^## (Unreleased|$VERSION)( |\$)" CHANGELOG.md \
+            || { echo "::error::CHANGELOG.md needs an '## Unreleased' or '## $VERSION' section"; exit 1; }
+
+      - name: Smoke test
+        # Read-only diagnostics: no audio changes, no UI.
+        run: |
+          build/AudioPilot.app/Contents/MacOS/AudioPilot --list-devices
+          build/AudioPilot.app/Contents/MacOS/AudioPilot --app-audio
 
       - name: Package
         run: scripts/package.sh
