@@ -3,13 +3,9 @@ import CoreAudio
 import Foundation
 import os
 
-/// One app's audio, rerouted: a process tap mutes the app's own output and captures it, and a
-/// private aggregate device (the target output plus the tap) plays it back at an adjustable gain.
-/// Private taps and aggregates belong to this process, so if AudioPilot quits or crashes they
-/// vanish and the app plays normally again.
-///
-/// Not tied to the main actor: CoreAudio calls are thread-safe and the render block runs on the
-/// HAL's real-time thread.
+/// One app's audio, rerouted: a process tap mutes and captures the app's output, and a private aggregate
+/// (target output + tap) replays it at a set gain. Both die with AudioPilot, so the app then plays normally.
+/// Nonisolated: CoreAudio calls are thread-safe and the render block runs on the HAL's real-time thread.
 nonisolated final class TapSession {
     static let uidPrefix = "com.techenable.audiopilot.tap."
 

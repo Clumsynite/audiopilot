@@ -22,9 +22,8 @@ public enum DevicePolicy {
         return device(uid, in: state)?.transport.blocksMicByDefault ?? false
     }
 
-    /// The rule currently deciding `dir`. A call in progress is the most specific signal, so a
-    /// `.usingMic` rule for an app using the mic wins (a named app before "any app"); then a matching
-    /// frontmost rule; else the `.running` rule of the most recently launched app.
+    /// The rule deciding `dir`: a `.usingMic` rule for an app on the mic (named app before "any app"), then
+    /// a frontmost rule, else the `.running` rule of the most recently launched app.
     /// Only rules whose device is connected and qualifies count.
     public static func activeRule(_ dir: Direction, in state: EngineState) -> AppRule? {
         func usable(_ rule: AppRule) -> Bool {
