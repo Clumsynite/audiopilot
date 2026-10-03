@@ -3,7 +3,7 @@
 Notable changes to AudioPilot. Add entries under **Unreleased** as you go; `scripts/bump-version.sh` turns that
 heading into the release version, and the Release workflow publishes the section as the release notes.
 
-## Unreleased
+## 0.2.0 — 2026-10-03
 
 ### Added
 - Per-app audio (macOS 14.2+): give an app its own output device, volume and mute, from the new **Apps**
