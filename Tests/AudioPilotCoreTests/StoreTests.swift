@@ -58,6 +58,14 @@ import Testing
         #expect(prefs.inputPriority == ["x"])
         #expect(prefs.autoSwitchEnabled)
         #expect(prefs.hotkey == .default)
+        #expect(!prefs.appAudioEnabled)
+    }
+
+    @Test func appAudioStaysOnForExistingSettings() throws {
+        let data = Data(#"{"appAudio":[{"bundleID":"a","appName":"A","volume":0.5,"muted":false}]}"#.utf8)
+        #expect(try JSONDecoder.store.decode(Preferences.self, from: data).appAudioEnabled)
+        let off = Data(#"{"appAudioEnabled":false,"appAudio":[{"bundleID":"a","appName":"A","volume":0.5,"muted":false}]}"#.utf8)
+        #expect(try !JSONDecoder.store.decode(Preferences.self, from: off).appAudioEnabled)
     }
 }
 

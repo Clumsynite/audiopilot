@@ -48,7 +48,7 @@ final class AppAudioRouter {
     }
 
     func start() {
-        guard Self.isSupported else { return }
+        guard Self.isSupported, timer == nil else { return }
         // New or departing audio clients; the timer covers apps starting and stopping playback.
         var addr = AudioHAL.address(kAudioHardwarePropertyProcessObjectList)
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
@@ -83,6 +83,13 @@ final class AppAudioRouter {
         listener = nil
         sessions.values.forEach { $0.stop() }
         sessions = [:]
+        lastPlaying = [:]
+        failed = [:]
+        if !apps.isEmpty || !problems.isEmpty {
+            apps = []
+            problems = [:]
+            onChange()
+        }
     }
 
     func reconcile() {

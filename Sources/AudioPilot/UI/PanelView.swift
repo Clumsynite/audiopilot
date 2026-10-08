@@ -65,7 +65,7 @@ struct PanelView: View {
                     MicModule(model: model)
                     warnings
                     DeviceModule(model: model, dir: .output)
-                    if model.appAudioSupported && !model.panelAudioApps.isEmpty {
+                    if model.appAudioSupported && model.prefs.appAudioEnabled && !model.panelAudioApps.isEmpty {
                         AppAudioModule(model: model)
                     }
                     DeviceModule(model: model, dir: .input)

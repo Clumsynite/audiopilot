@@ -263,7 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.extraTriggerActive = extraTrigger.start(engine.prefs.extraTrigger)
         model.applyMicFeatures()
         model.onProfilesChanged()
-        router?.reconcile()
+        model.applyAppAudio()
     }
 
     private func feedback() {
@@ -355,11 +355,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model.audioApps = router.apps
             model.appAudioProblems = router.problems
         }
-        model.applyAppAudio = { [weak router] in router?.reconcile() }
+        model.applyAppAudio = { [weak self, weak router] in
+            guard let self, let router else { return }
+            if engine.prefs.appAudioEnabled {
+                router.start()
+                router.reconcile()
+            } else {
+                router.stop()
+            }
+        }
         model.audioCaptureDenied = AudioCapturePermission.status == .denied
         // Device and default-output changes can move a route.
-        engine.observe { [weak router] in router?.reconcile() }
-        router.start()
+        engine.observe { [weak self, weak router] in
+            guard let self, engine.prefs.appAudioEnabled else { return }
+            router?.reconcile()
+        }
+        model.applyAppAudio()
     }
 
     private func observeSystemEvents() {

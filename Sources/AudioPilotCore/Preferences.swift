@@ -267,7 +267,9 @@ public struct Preferences: Equatable, Sendable, Codable {
     public var meetingSync: Bool = false
     /// Live input level in the menu bar icon while an app is using the mic (needs microphone permission).
     public var menuBarLevel: Bool = false
-    /// Per-app output device and volume (needs System Audio Recording permission).
+    /// Per-app output device and volume (needs System Audio Recording permission). Off leaves every
+    /// app alone and never asks for the permission; `appAudio` is kept for turning it back on.
+    public var appAudioEnabled: Bool = false
     public var appAudio: [AppAudioSetting] = []
 
     public init() {}
@@ -294,7 +296,7 @@ public struct Preferences: Equatable, Sendable, Codable {
         case paletteHotkey, theme, startMuted, muteOnLock, showMutedOverlay, announceSwitches
         case deviceShortcuts, spotlightEnabled, deviceSettings, notifyExternalMuteChanges, autoMuteOnCallStart, autoMuteApps
         case profiles, activeProfileID, outputGroups, extraTrigger, levelMeter, airPodsMute, meetingSync
-        case menuBarLevel, appAudio
+        case menuBarLevel, appAudioEnabled, appAudio
     }
 
     // Tolerates missing keys so older or hand-edited files still load.
@@ -339,6 +341,8 @@ public struct Preferences: Equatable, Sendable, Codable {
         meetingSync = try c.decodeIfPresent(Bool.self, forKey: .meetingSync) ?? d.meetingSync
         menuBarLevel = try c.decodeIfPresent(Bool.self, forKey: .menuBarLevel) ?? d.menuBarLevel
         appAudio = try c.decodeIfPresent([AppAudioSetting].self, forKey: .appAudio) ?? d.appAudio
+        // Files from before the switch existed stay on if they already use per-app audio.
+        appAudioEnabled = try c.decodeIfPresent(Bool.self, forKey: .appAudioEnabled) ?? !appAudio.isEmpty
     }
 }
 

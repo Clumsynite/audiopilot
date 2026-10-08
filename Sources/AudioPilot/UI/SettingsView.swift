@@ -1000,6 +1000,16 @@ private struct AppAudioPane: View {
                     Text("Per-app audio needs macOS 14.2 or later.").foregroundStyle(.secondary)
                 }
             } else {
+                Section {
+                    Toggle("Control output and volume per app", isOn: Binding(
+                        get: { model.prefs.appAudioEnabled }, set: { model.setAppAudioEnabled($0) }))
+                    if !model.prefs.appAudioEnabled {
+                        Text("Off: AudioPilot leaves every app's audio alone and doesn't need System Audio Recording permission.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if model.appAudioSupported && model.prefs.appAudioEnabled {
                 if model.audioCaptureDenied {
                     Section {
                         HStack {

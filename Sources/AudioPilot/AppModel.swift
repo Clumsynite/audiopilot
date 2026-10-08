@@ -272,6 +272,12 @@ final class AppModel: ObservableObject {
         devices(.output).filter { $0.transport != .aggregate }
     }
 
+    func setAppAudioEnabled(_ on: Bool) {
+        edit { $0.appAudioEnabled = on }
+        if on { requestAudioCaptureIfNeeded() }
+        applyAppAudio()
+    }
+
     func setAppVolume(_ app: AppAudioRouter.App, _ volume: Float) {
         editAppAudio(app.bundleID, app.name, deferSave: true) { $0.volume = volume; $0.muted = false }
     }
@@ -293,15 +299,19 @@ final class AppModel: ObservableObject {
                               _ body: (inout AppAudioSetting) -> Void) {
         let change: (inout Preferences) -> Void = { $0.appAudio.edit(bundleID, appName: name, body) }
         if deferSave { engine.editSettingsDeferred(change) } else { edit(change) }
-        // The first rerouted app asks for System Audio Recording permission.
-        if !prefs.appAudio.isEmpty, AudioCapturePermission.status == .unknown, !requestedAudioCapture {
-            requestedAudioCapture = true
-            AudioCapturePermission.request { [weak self] granted in
-                self?.audioCaptureDenied = !granted
-                self?.applyAppAudio()
-            }
-        }
+        requestAudioCaptureIfNeeded()
         applyAppAudio()
+    }
+
+    /// The first rerouted app asks for System Audio Recording permission.
+    private func requestAudioCaptureIfNeeded() {
+        guard prefs.appAudioEnabled, !prefs.appAudio.isEmpty, AudioCapturePermission.status == .unknown,
+              !requestedAudioCapture else { return }
+        requestedAudioCapture = true
+        AudioCapturePermission.request { [weak self] granted in
+            self?.audioCaptureDenied = !granted
+            self?.applyAppAudio()
+        }
     }
 
     private var requestedAudioCapture = false
