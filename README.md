@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Clumsynite/audiopilot/actions/workflows/ci.yml/badge.svg)](https://github.com/Clumsynite/audiopilot/actions/workflows/ci.yml)
 [![Release](https://github.com/Clumsynite/audiopilot/actions/workflows/release.yml/badge.svg)](https://github.com/Clumsynite/audiopilot/actions/workflows/release.yml)
-[![Version](https://img.shields.io/badge/version-0.2.0-blue)](../../releases/latest)
+[![Version](https://img.shields.io/badge/version-0.2.1-blue)](../../releases/latest)
 ![macOS](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)
 ![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-555)
 ![Swift](https://img.shields.io/badge/Swift-6.2%2B-F05138?logo=swift&logoColor=white)

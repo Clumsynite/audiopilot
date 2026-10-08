@@ -3,7 +3,7 @@
 Notable changes to AudioPilot. Add entries under **Unreleased** as you go; `scripts/bump-version.sh` turns that
 heading into the release version, and the Release workflow publishes the section as the release notes.
 
-## Unreleased
+## 0.2.1 — 2026-10-08
 
 ### Changed
 - Per-app audio is now a switch in **Settings › App Audio** and is off by default. While it's off, AudioPilot
