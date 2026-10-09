@@ -63,7 +63,6 @@ page = f"""<!doctype html>
     <div class="wrap">
       <a class="brand" href="/"><img src="/icon.png" alt="" width="34" height="34">AudioPilot</a>
       <nav class="site"><a href="/">Home</a><a href="/download">Download</a></nav>
-      <div class="switch-row"><span id="glass-label">Glass</span><button type="button" class="switch" role="switch" id="glass-switch" aria-checked="true" aria-labelledby="glass-label"></button></div>
     </div>
   </header>
   <main class="wrap" style="max-width: 780px">
