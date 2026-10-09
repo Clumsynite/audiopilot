@@ -14,7 +14,8 @@ trap 'rm -rf "$WORK"' EXIT
 PASSWORD="$(openssl rand -base64 24)"
 if [[ $# -ge 1 ]]; then
     read -rsp "Password for $1: " SOURCE_PASSWORD; echo
-    openssl pkcs12 -in "$1" -passin "pass:$SOURCE_PASSWORD" -nodes -out "$WORK/identity.pem"
+    openssl pkcs12 -legacy -in "$1" -passin "pass:$SOURCE_PASSWORD" -nodes -out "$WORK/identity.pem" 2>/dev/null \
+        || openssl pkcs12 -in "$1" -passin "pass:$SOURCE_PASSWORD" -nodes -out "$WORK/identity.pem"
 else
     IDENTITIES="$(security find-identity -v -p codesigning | grep -E '"(Apple Development|Developer ID Application):' || true)"
     COUNT="$(printf '%s' "$IDENTITIES" | grep -c . || true)"
@@ -24,7 +25,9 @@ else
     fi
     echo "Exporting: $(echo "$IDENTITIES" | awk -F'"' '{print $2}')"
     security export -t identities -f pkcs12 -P "$PASSWORD" -o "$WORK/all.p12"
-    openssl pkcs12 -in "$WORK/all.p12" -passin "pass:$PASSWORD" -nodes -out "$WORK/identity.pem"
+    # macOS encrypts the export with RC2, which OpenSSL 3 reads only in legacy mode.
+    openssl pkcs12 -legacy -in "$WORK/all.p12" -passin "pass:$PASSWORD" -nodes -out "$WORK/identity.pem" 2>/dev/null \
+        || openssl pkcs12 -in "$WORK/all.p12" -passin "pass:$PASSWORD" -nodes -out "$WORK/identity.pem"
 fi
 # Re-pack with a fresh password in a format the runner's keychain imports.
 openssl pkcs12 -export -legacy -in "$WORK/identity.pem" -out "$WORK/identity.p12" -passout "pass:$PASSWORD" 2>/dev/null \
