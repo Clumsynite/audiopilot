@@ -3,7 +3,7 @@
 Notable changes to AudioPilot. Add entries under **Unreleased** as you go; `scripts/bump-version.sh` turns that
 heading into the release version, and the Release workflow publishes the section as the release notes.
 
-## Unreleased
+## 0.3.0 — 2026-10-09
 
 ### Added
 - AudioPilot updates itself: it checks its download site every few hours, verifies the signed update, and installs
