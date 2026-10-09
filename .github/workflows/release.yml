@@ -23,7 +23,7 @@ jobs:
       HAS_CERT: ${{ secrets.SIGNING_P12 != '' }}
       HAS_NOTARY: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -162,7 +162,7 @@ jobs:
           echo "::error::CLOUDFLARE_API_TOKEN isn't set, so the site (and updates) weren't published"
           exit 1
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Fetch the newest release
         run: |
@@ -174,7 +174,7 @@ jobs:
       - name: Build site
         run: scripts/build-site.sh "$RUNNER_TEMP/release"
 
-      - uses: cloudflare/wrangler-action@v3
+      - uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

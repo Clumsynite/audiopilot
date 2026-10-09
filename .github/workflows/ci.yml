@@ -18,10 +18,10 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # scan the full history
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: false
@@ -30,7 +30,7 @@ jobs:
     # Xcode 27 image (macOS 26 SDK APIs such as Liquid Glass). Switch to macos-26 if you prefer the GA image.
     runs-on: xcode-27
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # build number = commit count
 
@@ -73,7 +73,7 @@ jobs:
         run: SITE_URL=https://audiopilot.example.invalid scripts/build-site.sh
 
       - name: Upload build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: AudioPilot-${{ github.sha }}
           path: dist/*
