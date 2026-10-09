@@ -229,6 +229,9 @@ public struct Preferences: Equatable, Sendable, Codable {
     public var systemSoundFollowsOutput: Bool = true
     public var showHUD: Bool = true
     public var playSound: Bool = false
+    /// System sound names (from /System/Library/Sounds) played on mute and unmute.
+    public var muteSound: String = "Bottle"
+    public var unmuteSound: String = "Tink"
     public var launchAtLogin: Bool = false
     public var paletteHotkey: HotKeySpec = .palette
     /// Raw value of the app's panel theme.
@@ -292,7 +295,7 @@ public struct Preferences: Equatable, Sendable, Codable {
 
     enum CodingKeys: String, CodingKey {
         case version, inputPriority, outputPriority, knownDevices, appRules, hotkey, hotkeyMode
-        case autoSwitchEnabled, systemSoundFollowsOutput, showHUD, playSound, launchAtLogin
+        case autoSwitchEnabled, systemSoundFollowsOutput, showHUD, playSound, muteSound, unmuteSound, launchAtLogin
         case paletteHotkey, theme, startMuted, muteOnLock, showMutedOverlay, announceSwitches
         case deviceShortcuts, spotlightEnabled, deviceSettings, notifyExternalMuteChanges, autoMuteOnCallStart, autoMuteApps
         case profiles, activeProfileID, outputGroups, extraTrigger, levelMeter, airPodsMute, meetingSync
@@ -314,6 +317,8 @@ public struct Preferences: Equatable, Sendable, Codable {
         systemSoundFollowsOutput = try c.decodeIfPresent(Bool.self, forKey: .systemSoundFollowsOutput) ?? d.systemSoundFollowsOutput
         showHUD = try c.decodeIfPresent(Bool.self, forKey: .showHUD) ?? d.showHUD
         playSound = try c.decodeIfPresent(Bool.self, forKey: .playSound) ?? d.playSound
+        muteSound = try c.decodeIfPresent(String.self, forKey: .muteSound) ?? d.muteSound
+        unmuteSound = try c.decodeIfPresent(String.self, forKey: .unmuteSound) ?? d.unmuteSound
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
         // v1 → v2: the default mute shortcut changed from ⌃⌥⌘M to ⌘⇧M.
         if version < 2 {

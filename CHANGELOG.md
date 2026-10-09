@@ -3,6 +3,12 @@
 Notable changes to AudioPilot. Add entries under **Unreleased** as you go; `scripts/bump-version.sh` turns that
 heading into the release version, and the Release workflow publishes the section as the release notes.
 
+## Unreleased
+
+### Added
+- Pick the mute and unmute sounds from the macOS system sounds in **Settings › General › Feedback**, with a
+  button to hear each one.
+
 ## 0.2.1 — 2026-10-08
 
 ### Changed

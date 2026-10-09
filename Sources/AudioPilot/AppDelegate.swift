@@ -268,7 +268,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func feedback() {
         if engine.prefs.showHUD { hud.showMute(mute.isMuted, detail: model.hudMicLine) }
-        if engine.prefs.playSound { NSSound(named: mute.isMuted ? "Bottle" : "Tink")?.play() }
+        if engine.prefs.playSound { NSSound(named: mute.isMuted ? engine.prefs.muteSound : engine.prefs.unmuteSound)?.play() }
     }
 
     private func announce(_ dir: Direction, _ uid: String) {

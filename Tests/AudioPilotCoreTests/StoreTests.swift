@@ -59,6 +59,8 @@ import Testing
         #expect(prefs.autoSwitchEnabled)
         #expect(prefs.hotkey == .default)
         #expect(!prefs.appAudioEnabled)
+        #expect(prefs.muteSound == "Bottle")
+        #expect(prefs.unmuteSound == "Tink")
     }
 
     @Test func appAudioStaysOnForExistingSettings() throws {

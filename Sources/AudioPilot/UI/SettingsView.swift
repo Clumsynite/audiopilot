@@ -139,6 +139,10 @@ private struct GeneralPane: View {
             Section("Feedback") {
                 toggle("Show on-screen indicator when muting", \.showHUD)
                 toggle("Play a sound when muting", \.playSound)
+                if model.prefs.playSound {
+                    soundPicker("Mute sound", \.muteSound)
+                    soundPicker("Unmute sound", \.unmuteSound)
+                }
                 toggle("Announce automatic device switches", \.announceSwitches)
             }
             Section("Devices") {
@@ -180,6 +184,30 @@ private struct GeneralPane: View {
         Toggle(title, isOn: Binding(get: { model.prefs[keyPath: key] },
                                     set: { value in model.edit { $0[keyPath: key] = value } }))
     }
+
+    private func soundPicker(_ title: String, _ key: WritableKeyPath<Preferences, String>) -> some View {
+        HStack {
+            Picker(title, selection: Binding(get: { model.prefs[keyPath: key] }, set: { name in
+                model.edit { $0[keyPath: key] = name }
+                NSSound(named: name)?.play()
+            })) {
+                ForEach(Self.systemSounds, id: \.self) { Text($0).tag($0) }
+            }
+            Button {
+                NSSound(named: model.prefs[keyPath: key])?.play()
+            } label: {
+                Image(systemName: "speaker.wave.2")
+            }
+            .buttonStyle(.borderless)
+            .help("Play")
+        }
+    }
+
+    private static let systemSounds: [String] = {
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: "/System/Library/Sounds")) ?? []
+        let names = files.map { ($0 as NSString).deletingPathExtension }.sorted()
+        return names.isEmpty ? ["Bottle", "Tink"] : names
+    }()
 }
 
 // MARK: - Appearance
