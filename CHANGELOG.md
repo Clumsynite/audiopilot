@@ -9,6 +9,10 @@ heading into the release version, and the Release workflow publishes the section
 - Pick the mute and unmute sounds from the macOS system sounds in **Settings › General › Feedback**, with a
   button to hear each one.
 
+### Changed
+- Per-app audio captures in a separate helper process that runs only while an app is rerouted, so macOS stops
+  listing AudioPilot under System Audio Recording as soon as nothing is (previously it stayed until AudioPilot quit).
+
 ## 0.2.1 — 2026-10-08
 
 ### Changed

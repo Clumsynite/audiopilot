@@ -3,6 +3,11 @@ import Foundation
 
 setvbuf(stdout, nil, _IOLBF, 0)
 
+// Per-app audio's tap process, started by AudioPilot only (see TapHelper.swift).
+if CommandLine.arguments.contains("--tap-helper") {
+    TapHelperMain.run()
+}
+
 let flags = Flags()
 
 if flags.listDevices {

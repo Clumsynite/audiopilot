@@ -15,13 +15,14 @@ final class AppAudioRouter {
     }
 
     static let idleGrace: TimeInterval = 20
-    private static let retryDelay: TimeInterval = 15
 
     private let dryRun: Bool
-    private var sessions: [String: TapSession] = [:]
+    /// Taps run in a helper process, so AudioPilot itself never holds one (see TapHelper.swift).
+    private let helper = TapHelperClient()
+    /// Routes sent to the helper and the errors it last reported.
+    private var sent: [String: TapProtocol.Route] = [:]
+    private var helperErrors: [String: String] = [:]
     private var lastPlaying: [String: Date] = [:]
-    /// Last failed setup per app (processes + device), so a broken route isn't retried every second.
-    private var failed: [String: (key: String, at: Date)] = [:]
     private var timer: Timer?
     private var ticks = 0
     /// Routes a dry run would have made, so each is printed once.
@@ -37,7 +38,7 @@ final class AppAudioRouter {
     /// Why an app's setting isn't applied right now, by bundle ID.
     private(set) var problems: [String: String] = [:]
     /// Bundle IDs currently rerouted.
-    var routed: Set<String> { Set(sessions.keys) }
+    var routed: Set<String> { Set(sent.keys).subtracting(helperErrors.keys) }
 
     static var isSupported: Bool {
         if #available(macOS 14.2, *) { true } else { false }
@@ -45,6 +46,12 @@ final class AppAudioRouter {
 
     init(dryRun: Bool) {
         self.dryRun = dryRun
+        helper.onReply = { [weak self] errors in
+            guard let self, errors != helperErrors else { return }
+            helperErrors = errors
+            errors.forEach { log("route \($0.key) failed: \($0.value)") }
+            reconcile()
+        }
     }
 
     func start() {
@@ -81,10 +88,10 @@ final class AppAudioRouter {
             AudioObjectRemovePropertyListenerBlock(AudioHAL.system, &addr, DispatchQueue.main, listener)
         }
         listener = nil
-        sessions.values.forEach { $0.stop() }
-        sessions = [:]
+        helper.stop()
+        sent = [:]
+        helperErrors = [:]
         lastPlaying = [:]
-        failed = [:]
         if !apps.isEmpty || !problems.isEmpty {
             apps = []
             problems = [:]
@@ -100,7 +107,7 @@ final class AppAudioRouter {
         let permission = AudioCapturePermission.status
 
         var problems: [String: String] = [:]
-        var wanted: Set<String> = []
+        var wanted: [TapProtocol.Route] = []
         for setting in settings {
             let mine = processes.filter { $0.bundleID == setting.bundleID }
             if mine.contains(where: \.isRunningOutput) { lastPlaying[setting.bundleID] = now }
@@ -117,14 +124,13 @@ final class AppAudioRouter {
                     problems[setting.bundleID] = "Needs System Audio Recording permission"
                     continue
                 }
-                wanted.insert(setting.bundleID)
-                apply(setting, route, processes: mine.map(\.object).sorted(), now: now, problems: &problems)
+                wanted.append(TapProtocol.Route(bundleID: setting.bundleID, appName: setting.appName,
+                                                processes: mine.map(\.object).sorted(), outputUID: route.outputUID,
+                                                gain: route.gain))
+                if let error = helperErrors[setting.bundleID] { problems[setting.bundleID] = error }
             }
         }
-        for bundleID in sessions.keys where !wanted.contains(bundleID) {
-            sessions.removeValue(forKey: bundleID)?.stop()
-            log("released \(bundleID)")
-        }
+        route(wanted)
         lastPlaying = lastPlaying.filter { now.timeIntervalSince($0.value) < Self.idleGrace }
 
         var apps: [App] = []
@@ -140,37 +146,24 @@ final class AppAudioRouter {
         }
     }
 
-    private func apply(_ setting: AppAudioSetting, _ route: AppAudioPlan.Route, processes: [AudioObjectID],
-                       now: Date, problems: inout [String: String]) {
-        let bundleID = setting.bundleID
-        if let session = sessions[bundleID], session.processes == processes, session.outputUID == route.outputUID,
-           session.isAlive {
-            session.setGain(route.gain)
-            return
-        }
-        // A new helper process or a different device: rebuild the route.
-        sessions.removeValue(forKey: bundleID)?.stop()
-        let key = "\(processes)|\(route.outputUID)"
-        if let failure = failed[bundleID], failure.key == key, now.timeIntervalSince(failure.at) < Self.retryDelay {
-            problems[bundleID] = problems[bundleID] ?? self.problems[bundleID]
-            return
-        }
-        if dryRun {
-            let line = "route \(bundleID) → \(route.outputUID) gain \(route.gain)"
-            if dryRunRoutes[bundleID] != line { print("DRYRUN \(line)") }
-            dryRunRoutes[bundleID] = line
-            return
-        }
-        do {
-            sessions[bundleID] = try TapSession(processes: processes, outputUID: route.outputUID,
-                                                name: "AudioPilot – \(setting.appName)", gain: route.gain)
-            failed[bundleID] = nil
+    /// Hands the wanted routes to the helper; with none, the helper exits and macOS stops listing AudioPilot.
+    private func route(_ wanted: [TapProtocol.Route]) {
+        let now = Dictionary(uniqueKeysWithValues: wanted.map { ($0.bundleID, $0) })
+        for bundleID in sent.keys where now[bundleID] == nil { log("released \(bundleID)") }
+        for (bundleID, route) in now where sent[bundleID]?.outputUID != route.outputUID {
             log("routed \(bundleID) → \(route.outputUID) gain \(route.gain)")
-        } catch {
-            failed[bundleID] = (key, now)
-            problems[bundleID] = "\(error)"
-            log("route \(bundleID) failed: \(error)")
         }
+        sent = now
+        helperErrors = helperErrors.filter { now[$0.key] != nil }
+        if dryRun {
+            for route in wanted {
+                let line = "route \(route.bundleID) → \(route.outputUID) gain \(route.gain)"
+                if dryRunRoutes[route.bundleID] != line { print("DRYRUN \(line)") }
+                dryRunRoutes[route.bundleID] = line
+            }
+            return
+        }
+        helper.apply(wanted)
     }
 
     private func log(_ message: String) {
