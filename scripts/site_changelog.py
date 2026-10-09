@@ -29,7 +29,7 @@ for line in open(src, encoding="utf-8").read().splitlines():
         if started:
             body.append("</article>")
         started = True
-        body.append(f'<article><h2>{inline(line[3:].strip())}</h2>')
+        body.append(f'<article class="release glass reveal"><h2>{inline(line[3:].strip())}</h2>')
     elif not started:
         continue
     elif line.startswith("### "):
@@ -47,7 +47,7 @@ if started:
     body.append("</article>")
 
 page = f"""<!doctype html>
-<html lang="en">
+<html lang="en" data-glass="on">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -56,33 +56,21 @@ page = f"""<!doctype html>
   <link rel="canonical" href="%SITE_URL%/changelog">
   <meta name="color-scheme" content="light dark">
   <link rel="icon" href="/icon.png" type="image/png">
-  <style>
-    :root {{ --bg: #f4f6f8; --surface: #ffffffcc; --surface-2: #e9eef2; --text: #14181c; --muted: #5b6670; --accent: #0f8f8a; --border: #d8dfe5; }}
-    @media (prefers-color-scheme: dark) {{
-      :root {{ --bg: #0d1114; --surface: #171d22cc; --surface-2: #1f272d; --text: #e9eef2; --muted: #9aa6b0; --accent: #3cc8bf; --border: #2a343c; }}
-    }}
-    * {{ box-sizing: border-box; }}
-    body {{ margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }}
-    .wrap {{ max-width: 760px; margin: 0 auto; padding: 0 16px 48px; }}
-    header {{ display: flex; justify-content: space-between; align-items: center; padding: 18px 0 8px; }}
-    header a {{ color: var(--text); text-decoration: none; font-weight: 650; display: flex; gap: 10px; align-items: center; }}
-    header img {{ width: 28px; height: 28px; }}
-    a {{ color: var(--accent); }}
-    h1 {{ font-size: clamp(1.6rem, 4vw, 2.2rem); margin: 24px 0 8px; }}
-    article {{ background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px 22px; margin: 16px 0; }}
-    article h2 {{ margin: 0 0 6px; font-size: 1.25rem; }}
-    h3 {{ margin: 14px 0 4px; font-size: .95rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }}
-    ul {{ margin: 0; padding-left: 1.2em; }}
-    li {{ margin: 4px 0; }}
-    code {{ background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-size: .9em; overflow-wrap: anywhere; }}
-  </style>
+  <link rel="stylesheet" href="/site.css">
 </head>
 <body>
-  <div class="wrap">
-    <header><a href="/"><img src="/icon.png" alt="" width="28" height="28">AudioPilot</a><a href="/download" style="color:var(--accent)">Download</a></header>
-    <h1>What's new</h1>
+  <header class="site">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/icon.png" alt="" width="34" height="34">AudioPilot</a>
+      <nav class="site"><a href="/">Home</a><a href="/download">Download</a></nav>
+      <div class="switch-row"><span id="glass-label">Glass</span><button type="button" class="switch" role="switch" id="glass-switch" aria-checked="true" aria-labelledby="glass-label"></button></div>
+    </div>
+  </header>
+  <main class="wrap" style="max-width: 780px">
+    <h1 style="font-size: clamp(1.8rem, 4vw, 2.4rem); margin: 32px 0 8px; letter-spacing: -.02em">What's new</h1>
     {"".join(body)}
-  </div>
+  </main>
+  <script src="/site.js"></script>
 </body>
 </html>
 """

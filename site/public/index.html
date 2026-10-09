@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-glass="on">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,6 +7,8 @@
   <meta name="description" content="AudioPilot is a free macOS menu bar app that picks the right mic and speakers automatically, keeps AirPods out of call mode, and mutes every mic with one shortcut.">
   <link rel="canonical" href="%SITE_URL%/">
   <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#eef2f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0a0e11" media="(prefers-color-scheme: dark)">
   <meta property="og:type" content="website">
   <meta property="og:title" content="AudioPilot for Mac">
   <meta property="og:description" content="The right mic and speakers, automatically. One shortcut mutes every mic.">
@@ -14,176 +16,100 @@
   <meta property="og:image" content="%SITE_URL%/screens/panel.png">
   <link rel="icon" href="/icon.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon.png">
-  <style>
-    :root {
-      --bg: #f4f6f8; --surface: #ffffffcc; --surface-2: #e9eef2; --text: #14181c; --muted: #5b6670;
-      --accent: #0f8f8a; --accent-ink: #ffffff; --border: #d8dfe5; --shadow: 0 10px 30px #0b1a2a14;
-      --radius: 18px; --measure: 62ch;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #0d1114; --surface: #171d22cc; --surface-2: #1f272d; --text: #e9eef2; --muted: #9aa6b0;
-        --accent: #3cc8bf; --accent-ink: #062321; --border: #2a343c; --shadow: 0 10px 30px #00000059;
-      }
-    }
-    * { box-sizing: border-box; }
-    html { -webkit-text-size-adjust: 100%; }
-    body {
-      margin: 0; background: var(--bg); color: var(--text); line-height: 1.55;
-      font: 16px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
-      background-image: radial-gradient(60rem 30rem at 85% -10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%);
-    }
-    a { color: var(--accent); }
-    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
-    header.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
-    .brand { display: flex; gap: 10px; align-items: center; font-weight: 650; text-decoration: none; color: var(--text); }
-    .brand img { width: 32px; height: 32px; }
-    nav a { color: var(--muted); text-decoration: none; margin-left: 18px; font-size: .95rem; }
-    nav a:hover { color: var(--text); }
-
-    .hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 40px; align-items: center; padding: 40px 0 56px; }
-    .hero h1 { font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 16px; }
-    .hero p.lede { color: var(--muted); font-size: 1.15rem; max-width: var(--measure); margin: 0 0 26px; }
-    .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px; font-weight: 600; text-decoration: none; border: 1px solid transparent; }
-    .btn.primary { background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow); }
-    .btn.ghost { border-color: var(--border); color: var(--text); background: var(--surface); }
-    .meta { color: var(--muted); font-size: .9rem; margin-top: 12px; }
-    .shot-hero { display: flex; justify-content: center; }
-    .shot-hero img { width: min(100%, 340px); height: auto; border-radius: 22px; box-shadow: var(--shadow); }
-
-    section { padding: 48px 0; }
-    h2 { font-size: clamp(1.4rem, 3vw, 2rem); letter-spacing: -.01em; margin: 0 0 8px; }
-    .sub { color: var(--muted); margin: 0 0 28px; max-width: var(--measure); }
-    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; backdrop-filter: blur(12px); }
-    .card h3 { margin: 0 0 8px; font-size: 1.05rem; }
-    .card ul { margin: 0; padding-left: 1.1em; color: var(--muted); }
-    .card li { margin: 4px 0; }
-
-    .screens { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-    .screens figure { margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
-    .screens img { width: 100%; height: auto; border-radius: 10px; display: block; }
-    .screens figcaption { color: var(--muted); font-size: .9rem; margin-top: 10px; }
-    .screens .wide { grid-column: 1 / -1; }
-
-    .steps { list-style: none; counter-reset: s; padding: 0; margin: 0; display: grid; gap: 14px; max-width: var(--measure); }
-    .steps li { counter-increment: s; display: grid; grid-template-columns: 2.1rem 1fr; gap: 12px; align-items: start; }
-    .steps li::before { content: counter(s); width: 2.1rem; height: 2.1rem; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--accent); font-weight: 650; }
-    .steps b { display: block; }
-    .steps span { color: var(--muted); }
-    code { background: var(--surface-2); padding: 2px 6px; border-radius: 6px; font-size: .9em; overflow-wrap: anywhere; }
-
-    details { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 18px; margin-bottom: 10px; max-width: 760px; }
-    summary { cursor: pointer; font-weight: 600; }
-    details p { color: var(--muted); margin: 10px 0 0; }
-
-    footer { color: var(--muted); font-size: .9rem; padding: 32px 0 48px; border-top: 1px solid var(--border); margin-top: 24px; display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; }
-
-    @media (max-width: 820px) {
-      .hero { grid-template-columns: 1fr; padding-top: 16px; }
-      .grid { grid-template-columns: 1fr; }
-      .screens { grid-template-columns: 1fr; }
-      nav a { margin-left: 12px; }
-    }
-  </style>
+  <link rel="stylesheet" href="/site.css">
 </head>
 <body>
-  <div class="wrap">
-    <header class="top">
-      <a class="brand" href="/"><img src="/icon.png" alt="" width="32" height="32">AudioPilot</a>
-      <nav><a href="#features">Features</a><a href="#install">Install</a><a href="/changelog">What's new</a></nav>
-    </header>
+  <header class="site">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/icon.png" alt="" width="34" height="34">AudioPilot</a>
+      <nav class="site"><a href="#features">Features</a><a href="#screens">Screens</a><a href="#install">Install</a><a href="/changelog">What's new</a></nav>
+      <div class="switch-row"><span id="glass-label">Glass</span><button type="button" class="switch" role="switch" id="glass-switch" aria-checked="true" aria-labelledby="glass-label"></button></div>
+    </div>
+  </header>
 
-    <main>
-      <div class="hero">
-        <div>
-          <h1>The right mic and speakers, automatically.</h1>
-          <p class="lede">AudioPilot lives in your Mac's menu bar. It switches to the devices you actually want, keeps AirPods out of low-quality call mode, and mutes every microphone with one shortcut.</p>
-          <div class="cta">
-            <a class="btn primary" href="/download" id="download">Download for Mac</a>
-            <a class="btn ghost" href="/changelog">What's new</a>
-          </div>
-          <p class="meta" id="release-meta">Free · macOS 14 or later · Apple silicon</p>
+  <main class="wrap">
+    <div class="hero">
+      <div class="reveal">
+        <h1>The right mic and speakers, <em>automatically.</em></h1>
+        <p class="lede">AudioPilot lives in your Mac's menu bar. It switches to the devices you actually want, keeps AirPods out of low-quality call mode, and mutes every microphone with one shortcut.</p>
+        <div class="cta">
+          <a class="btn primary" href="/download">Download for Mac</a>
+          <a class="btn ghost" href="/changelog">What's new</a>
         </div>
-        <div class="shot-hero"><img src="/screens/panel.png" width="640" height="1080" alt="The AudioPilot panel: microphone mute, output and input devices, and quick actions."></div>
+        <p class="meta" id="release-meta">Free · macOS 14 or later · Apple silicon</p>
       </div>
+      <div class="stage reveal">
+        <img src="/screens/panel.png" width="640" height="1080" alt="The AudioPilot panel: microphone mute, output and input devices, and quick actions.">
+        <img class="hud" src="/screens/hud-muted.png" width="680" height="144" alt="">
+      </div>
+    </div>
 
-      <section id="features" aria-labelledby="features-title">
-        <h2 id="features-title">Everything audio, one menu bar icon</h2>
-        <p class="sub">No Dock icon, no account, nothing leaves your Mac.</p>
-        <div class="grid">
-          <div class="card">
-            <h3>Devices</h3>
-            <ul>
-              <li>Learns your priority and switches input and output as devices come and go.</li>
-              <li>Blocks Bluetooth mics so AirPods keep high-quality audio.</li>
-              <li>Rules per app, and profiles that follow your Wi-Fi network.</li>
-              <li>Per-app output and volume (macOS 14.2+).</li>
-            </ul>
-          </div>
-          <div class="card">
-            <h3>Mute</h3>
-            <ul>
-              <li>⌘⇧M mutes every mic: toggle or push-to-talk.</li>
-              <li>Globe key, a mouse button, an AirPods stem, or automatically when a call starts.</li>
-              <li>See which app is using the mic; Zoom and Teams mute sync.</li>
-            </ul>
-          </div>
-          <div class="card">
-            <h3>Everywhere</h3>
-            <ul>
-              <li>⌘K command palette and global device shortcuts.</li>
-              <li>Spotlight and Shortcuts actions, plus <code>audiopilot://</code> links.</li>
-              <li>Updates itself, signed and verified, when you're not on a call.</li>
-            </ul>
-          </div>
+    <section id="features" aria-labelledby="features-title">
+      <h2 id="features-title" class="reveal">Everything audio, one menu bar icon</h2>
+      <p class="sub reveal">No Dock icon, no account, nothing leaves your Mac.</p>
+      <div class="grid">
+        <div class="tile glass reveal">
+          <h3><span class="dot" aria-hidden="true">⇄</span>Devices</h3>
+          <ul>
+            <li>Learns your priority and switches input and output as devices come and go.</li>
+            <li>Blocks Bluetooth mics so AirPods keep high-quality audio.</li>
+            <li>Rules per app, and profiles that follow your Wi-Fi network.</li>
+            <li>Per-app output and volume (macOS 14.2+).</li>
+          </ul>
         </div>
-      </section>
-
-      <section id="screens" aria-labelledby="screens-title">
-        <h2 id="screens-title">What it looks like</h2>
-        <p class="sub">Liquid Glass on macOS 26, frosted glass before that.</p>
-        <div class="screens">
-          <figure><img src="/screens/palette.png" width="640" height="798" loading="lazy" alt="Command palette listing devices and actions."><figcaption>⌘K for any device or action</figcaption></figure>
-          <figure><img src="/screens/about.png" width="920" height="902" loading="lazy" alt="About window with AudioPilot's main features."><figcaption>Small, native and fast</figcaption></figure>
-          <figure class="wide"><img src="/screens/settings-devices.png" width="1800" height="1240" loading="lazy" alt="Settings, Devices: priority lists for input and output."><figcaption>Priorities it learns from your choices</figcaption></figure>
-          <figure><img src="/screens/hud-muted.png" width="680" height="144" loading="lazy" alt="On-screen indicator: microphones muted."><figcaption>An indicator that names the mic</figcaption></figure>
-          <figure><img src="/screens/hud-switch.png" width="600" height="128" loading="lazy" alt="On-screen notice: switched output device."><figcaption>A quiet notice when it switches</figcaption></figure>
+        <div class="tile glass reveal">
+          <h3><span class="dot" aria-hidden="true">◉</span>Mute</h3>
+          <ul>
+            <li>⌘⇧M mutes every mic: toggle or push-to-talk.</li>
+            <li>Globe key, a mouse button, an AirPods stem, or automatically when a call starts.</li>
+            <li>See which app is using the mic; Zoom and Teams mute sync.</li>
+          </ul>
         </div>
-      </section>
+        <div class="tile glass reveal">
+          <h3><span class="dot" aria-hidden="true">⌘</span>Everywhere</h3>
+          <ul>
+            <li>⌘K command palette and global device shortcuts.</li>
+            <li>Spotlight and Shortcuts actions, plus <code>audiopilot://</code> links.</li>
+            <li>Updates itself, signed and verified, when you're not on a call.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
 
-      <section id="install" aria-labelledby="install-title">
-        <h2 id="install-title">Install</h2>
-        <p class="sub">AudioPilot isn't from the App Store, so macOS asks you to confirm it once. After that it updates itself.</p>
-        <ol class="steps">
-          <li><div><b>Download and open the disk image</b><span>Drag AudioPilot to Applications, then open it from there. A mic icon appears in the menu bar.</span></div></li>
-          <li><div><b>If macOS says it can't verify the app</b><span>Click Done, open System Settings › Privacy &amp; Security, scroll down and click <b style="display:inline">Open Anyway</b> next to AudioPilot.</span></div></li>
-          <li><div><b>Turn on what you need</b><span>AudioPilot only asks for a permission (Microphone, Accessibility, System Audio Recording…) when you switch on a feature that needs it.</span></div></li>
-        </ol>
-      </section>
+    <section id="screens" aria-labelledby="screens-title">
+      <h2 id="screens-title" class="reveal">What it looks like</h2>
+      <p class="sub reveal">Liquid Glass on macOS 26, frosted glass before that.</p>
+      <div class="screens">
+        <figure class="glass reveal"><img src="/screens/palette.png" width="640" height="798" loading="lazy" alt="Command palette listing devices and actions."><figcaption>⌘K for any device or action</figcaption></figure>
+        <figure class="glass reveal"><img src="/screens/about.png" width="920" height="902" loading="lazy" alt="About window with AudioPilot's main features."><figcaption>Small, native and fast</figcaption></figure>
+        <figure class="glass wide reveal"><img src="/screens/settings-devices.png" width="1800" height="1240" loading="lazy" alt="Settings, Devices: priority lists for input and output."><figcaption>Priorities it learns from your choices</figcaption></figure>
+        <figure class="glass reveal"><img src="/screens/hud-muted.png" width="680" height="144" loading="lazy" alt="On-screen indicator: microphones muted."><figcaption>An indicator that names the mic</figcaption></figure>
+        <figure class="glass reveal"><img src="/screens/hud-switch.png" width="600" height="128" loading="lazy" alt="On-screen notice: switched output device."><figcaption>A quiet notice when it switches</figcaption></figure>
+      </div>
+    </section>
 
-      <section id="faq" aria-labelledby="faq-title">
-        <h2 id="faq-title">Questions</h2>
-        <details><summary>How do updates work?</summary><p>AudioPilot checks this site every few hours. A new version is downloaded, checked against its published signature and digest, and installed when no app is using the mic, or when you quit. You can turn this off in Settings › General › Updates.</p></details>
-        <details><summary>Why does macOS show a recording indicator?</summary><p>Only per-app audio captures sound, to play an app through another device or at another volume. It's off by default; while it's off, AudioPilot records nothing.</p></details>
-        <details><summary>How do I uninstall it?</summary><p>Quit AudioPilot and move it to the Bin. Its settings are in ~/Library/Application Support/AudioPilot.</p></details>
-      </section>
-    </main>
+    <section id="install" aria-labelledby="install-title">
+      <h2 id="install-title" class="reveal">Install</h2>
+      <p class="sub reveal">AudioPilot isn't from the App Store, so macOS asks you to confirm it once. After that it updates itself.</p>
+      <ol class="steps glass reveal">
+        <li><div><b>Download and open the disk image</b><span>Drag AudioPilot to Applications, then open it from there. A mic icon appears in the menu bar.</span></div></li>
+        <li><div><b>If macOS says it can't verify the app</b><span>Click Done, open System Settings › Privacy &amp; Security, scroll down and click Open Anyway next to AudioPilot.</span></div></li>
+        <li><div><b>Turn on what you need</b><span>AudioPilot only asks for a permission (Microphone, Accessibility, System Audio Recording…) when you switch on a feature that needs it.</span></div></li>
+      </ol>
+    </section>
 
-    <footer>
-      <span>AudioPilot · made by <a href="https://github.com/Clumsynite">Clumsynite</a></span>
-      <span><a href="/changelog">Changelog</a> · <a href="/update.json">update.json</a></span>
-    </footer>
-  </div>
-  <script>
-    // Version, date and size of the current download, from the same file the app checks.
-    fetch("/update.json", { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(u => {
-      if (!u) return;
-      const mb = u.size ? ` · ${(u.size / 1048576).toFixed(1)} MB` : "";
-      const date = u.published ? ` · ${new Date(u.published).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}` : "";
-      document.getElementById("release-meta").textContent = `Version ${u.version}${date}${mb} · macOS ${u.minimumSystemVersion || "14"} or later · Apple silicon`;
-    }).catch(() => {});
-  </script>
+    <section id="faq" aria-labelledby="faq-title">
+      <h2 id="faq-title" class="reveal">Questions</h2>
+      <details class="glass reveal"><summary>How do updates work?</summary><p>AudioPilot checks this site every few hours. A new version is downloaded, checked against its published signature and digest, and installed when no app is using the mic, or when you quit. You can turn this off in Settings › General › Updates.</p></details>
+      <details class="glass reveal"><summary>Why does macOS show a recording indicator?</summary><p>Only per-app audio captures sound, to play an app through another device or at another volume. It's off by default, and the capture runs in a helper that exists only while an app is rerouted, so the indicator goes as soon as nothing is.</p></details>
+      <details class="glass reveal"><summary>How do I uninstall it?</summary><p>Quit AudioPilot and move it to the Bin. Its settings are in ~/Library/Application Support/AudioPilot.</p></details>
+    </section>
+  </main>
+
+  <footer class="site wrap">
+    <span>AudioPilot · made by <a href="https://github.com/Clumsynite">Clumsynite</a></span>
+    <span><a href="/changelog">Changelog</a> · <a href="/update.json">update.json</a></span>
+  </footer>
+  <script src="/site.js"></script>
 </body>
 </html>
