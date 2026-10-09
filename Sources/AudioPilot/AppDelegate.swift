@@ -44,7 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hal = AudioHAL(dryRun: flags.dryRun)
         engine = EngineController(prefs: prefs ?? Preferences(), hal: hal, store: store, dryRun: flags.dryRun)
         mute = MuteController(store: store, dryRun: flags.dryRun)
-        model = AppModel(engine: engine, mute: mute, hotKey: hotKey)
+        model = AppModel(engine: engine, mute: mute, hotKey: hotKey, updater: Updater(dryRun: flags.dryRun))
         IntentBridge.model = model
 
         hal.observeSystem { [weak self] in self?.audioChanged() }
@@ -68,6 +68,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if engine.prefs.startMuted { mute.setMuted(true) }
         setUpUI()
         setUpHotKeys()
+        model.updater.startAutomaticChecks(
+            isOn: { [weak self] in self?.engine.prefs.autoCheckUpdates ?? false },
+            autoInstall: { [weak self] in self?.engine.prefs.autoInstallUpdates ?? false },
+            // A restart drops per-app routes and the hotkey for a moment, so not during a call or while rerouting.
+            isQuiet: { [weak self] in
+                guard let self else { return false }
+                return model.micUsers.isEmpty && (router?.routed.isEmpty ?? true)
+            })
         launched = true
         pendingURLs.forEach(handle)
         pendingURLs = []
@@ -77,6 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Mics stay muted on quit by design; the state file lets the next launch restore volumes.
         router?.stop()
         engine?.flushSave()
+        model?.updater.installOnQuit()
         hal?.removeSystemObservers()
         mute?.removeListeners()
         hotKey.unregisterAll()

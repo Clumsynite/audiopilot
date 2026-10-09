@@ -171,6 +171,7 @@ private struct GeneralPane: View {
                     Text(model.loginError).font(.caption).foregroundStyle(.red)
                 }
             }
+            UpdateSection(model: model, updater: model.updater)
             BackupSection(model: model)
             Section {
                 Text("If AudioPilot quits while muted, your microphones stay muted until you relaunch AudioPilot and unmute.")

@@ -59,6 +59,19 @@ if let i = CommandLine.arguments.firstIndex(of: "--test-tap"), CommandLine.argum
     exit(0)
 }
 
+// Asks the download site what's newest, the same way the app does, and prints the answer.
+if CommandLine.arguments.contains("--check-update") {
+    let updater = Updater(dryRun: false)
+    guard updater.enabled else {
+        print("Updates are off for this build (needs a bundled release build with a feed and key).")
+        exit(1)
+    }
+    updater.check()
+    while updater.state == .checking { RunLoop.main.run(until: Date().addingTimeInterval(0.1)) }
+    print("installed \(updater.version): \(updater.state)")
+    exit(0)
+}
+
 if flags.testMute {
     guard flags.dryRun else {
         print("--test-mute requires --dry-run")

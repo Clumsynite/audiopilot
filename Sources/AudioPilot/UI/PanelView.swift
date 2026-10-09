@@ -64,6 +64,7 @@ struct PanelView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     MicModule(model: model)
                     warnings
+                    UpdateCard(updater: model.updater, theme: model.theme)
                     DeviceModule(model: model, dir: .output)
                     if model.appAudioSupported && model.prefs.appAudioEnabled && !model.panelAudioApps.isEmpty {
                         AppAudioModule(model: model)

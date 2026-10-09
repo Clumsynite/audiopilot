@@ -8,6 +8,7 @@ final class AppModel: ObservableObject {
     let engine: EngineController
     let mute: MuteController
     let hotKey: GlobalHotKey
+    let updater: Updater
     @Published var hotKeyError = ""
     @Published var paletteHotKeyError = ""
     @Published var loginError = ""
@@ -43,10 +44,11 @@ final class AppModel: ObservableObject {
 
     static let muteKeyBundleID = "com.davechengapps.GlobalMute"
 
-    init(engine: EngineController, mute: MuteController, hotKey: GlobalHotKey) {
+    init(engine: EngineController, mute: MuteController, hotKey: GlobalHotKey, updater: Updater) {
         self.engine = engine
         self.mute = mute
         self.hotKey = hotKey
+        self.updater = updater
         engine.observe { [weak self] in self?.revision += 1 }
         mute.observe { [weak self] in self?.revision += 1 }
     }

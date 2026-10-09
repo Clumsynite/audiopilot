@@ -1,26 +1,26 @@
 name: Release
 
-# Push a tag like v0.2.0 (scripts/bump-version.sh does this) to publish a GitHub Release
-# with a .dmg and .zip. The tag must be on main, and its CHANGELOG.md section becomes the notes. Signing and notarization run only when the secrets below are set;
-# otherwise the app is ad-hoc signed and users approve it once in System Settings.
-#
-# Optional secrets:
-#   DEVELOPER_ID_P12           base64 of a "Developer ID Application" certificate (.p12)
-#   DEVELOPER_ID_P12_PASSWORD  its password
-#   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD   for notarytool
+# A tag like v0.2.0 (scripts/bump-version.sh) publishes a GitHub Release, then deploys the download site whose
+# signed update.json installed copies check. Run by hand to redeploy the site. Secrets: see README › Releasing
+# (UPDATE_SIGNING_KEY, SIGNING_P12[_PASSWORD], CLOUDFLARE_*, and APPLE_* for notarizing a Developer ID).
 
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+env:
+  SITE_URL: ${{ vars.SITE_URL || 'https://audiopilot.clusmsyknight.workers.dev' }}
+
 jobs:
   release:
+    if: github.event_name == 'push'
     runs-on: xcode-27
     env:
-      HAS_CERT: ${{ secrets.DEVELOPER_ID_P12 != '' }}
+      HAS_CERT: ${{ secrets.SIGNING_P12 != '' }}
       HAS_NOTARY: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
     steps:
       - uses: actions/checkout@v5
@@ -58,11 +58,20 @@ jobs:
       - name: Test
         run: swift test
 
-      - name: Import Developer ID certificate
+      - name: Check update signing key
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          if [[ -z "$UPDATE_SIGNING_KEY" ]]; then
+            echo "::error::UPDATE_SIGNING_KEY isn't set, so installed copies would reject this release. Run scripts/setup-release-secrets.sh."
+            exit 1
+          fi
+
+      - name: Import signing identity
         if: env.HAS_CERT == 'true'
         env:
-          P12: ${{ secrets.DEVELOPER_ID_P12 }}
-          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          P12: ${{ secrets.SIGNING_P12 }}
+          P12_PASSWORD: ${{ secrets.SIGNING_P12_PASSWORD }}
         run: |
           KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
           KEYCHAIN_PASSWORD="$(uuidgen)"
@@ -72,14 +81,16 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security import "$RUNNER_TEMP/cert.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
           security list-keychain -d user -s "$KEYCHAIN"
-          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" | awk -F'"' '/Developer ID Application/ {print $2; exit}')"
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" | awk -F'"' '/Developer ID Application|Apple Development/ {print $2; exit}')"
+          [[ -n "$IDENTITY" ]] || { echo "::error::SIGNING_P12 has no usable code signing identity"; exit 1; }
           echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          [[ "$IDENTITY" == Developer\ ID* ]] && echo "IS_DEVELOPER_ID=true" >> "$GITHUB_ENV" || true
 
       - name: Build app
         run: scripts/build-app.sh
 
       - name: Notarize app
-        if: env.HAS_CERT == 'true' && env.HAS_NOTARY == 'true'
+        if: env.IS_DEVELOPER_ID == 'true' && env.HAS_NOTARY == 'true'
         run: |
           ditto -c -k --keepParent build/AudioPilot.app "$RUNNER_TEMP/notarize.zip"
           xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --wait \
@@ -91,7 +102,7 @@ jobs:
         run: scripts/package.sh
 
       - name: Notarize disk image
-        if: env.HAS_CERT == 'true' && env.HAS_NOTARY == 'true'
+        if: env.IS_DEVELOPER_ID == 'true' && env.HAS_NOTARY == 'true'
         run: |
           codesign --force --sign "$SIGN_IDENTITY" --timestamp dist/AudioPilot-$VERSION.dmg
           xcrun notarytool submit dist/AudioPilot-$VERSION.dmg --wait \
@@ -100,17 +111,78 @@ jobs:
           xcrun stapler staple dist/AudioPilot-$VERSION.dmg
           (cd dist && shasum -a 256 AudioPilot-$VERSION.dmg AudioPilot-$VERSION.zip > SHA256SUMS.txt)
 
+      - name: Write and sign update.json
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          PLIST=build/AudioPilot.app/Contents/Info.plist
+          ZIP="dist/AudioPilot-$VERSION.zip"
+          jq -n \
+            --arg version "$VERSION" \
+            --argjson build "$(plutil -extract CFBundleVersion raw "$PLIST")" \
+            --arg url "${SITE_URL%/}/AudioPilot-$VERSION.zip" \
+            --arg sha256 "$(shasum -a 256 "$ZIP" | cut -d' ' -f1)" \
+            --argjson size "$(stat -f %z "$ZIP")" \
+            --rawfile notes "$RUNNER_TEMP/changes.md" \
+            --arg published "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg minimumSystemVersion "$(plutil -extract LSMinimumSystemVersion raw "$PLIST")" \
+            '{version: $version, build: $build, url: $url, sha256: $sha256, size: $size, notes: ($notes | gsub("^\\s+|\\s+$"; "")), published: $published, minimumSystemVersion: $minimumSystemVersion}' \
+            > dist/update.json
+          swift scripts/update-key.swift sign dist/update.json > dist/update.json.sig
+          cat dist/update.json
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           SIGNED="ad-hoc signed — on first launch approve it in System Settings › Privacy & Security (see README)"
-          if [[ "$HAS_CERT" == "true" && "$HAS_NOTARY" == "true" ]]; then SIGNED="signed and notarized"; fi
+          if [[ "$HAS_CERT" == "true" ]]; then SIGNED="signed but not notarized — on first launch approve it in System Settings › Privacy & Security (see README)"; fi
+          if [[ "${IS_DEVELOPER_ID:-}" == "true" && "$HAS_NOTARY" == "true" ]]; then SIGNED="signed and notarized"; fi
           {
-            echo "**Install:** download \`AudioPilot-$VERSION.dmg\`, open it and drag AudioPilot to Applications. This build is $SIGNED."
+            echo "**Install:** download \`AudioPilot-$VERSION.dmg\` from ${SITE_URL%/}, open it and drag AudioPilot to Applications. Installed copies update themselves. This build is $SIGNED."
             cat "$RUNNER_TEMP/changes.md"
           } > "$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" dist/* \
             --title "AudioPilot $VERSION" \
             --generate-notes \
             --notes-file "$RUNNER_TEMP/notes.md"
+
+  # Publishes the site with the newest release's files. Runs after each release, or by hand for site-only changes.
+  deploy:
+    needs: release
+    if: always() && (needs.release.result == 'success' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    env:
+      HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check Cloudflare token
+        if: env.HAS_TOKEN != 'true'
+        run: |
+          echo "::error::CLOUDFLARE_API_TOKEN isn't set, so the site (and updates) weren't published"
+          exit 1
+
+      - uses: actions/checkout@v5
+
+      - name: Fetch the newest release
+        run: |
+          TAG="$(gh release view --json tagName --jq .tagName)"
+          mkdir -p "$RUNNER_TEMP/release"
+          gh release download "$TAG" -D "$RUNNER_TEMP/release" -p 'AudioPilot-*' -p 'update.json*'
+          ls -l "$RUNNER_TEMP/release"
+
+      - name: Build site
+        run: scripts/build-site.sh "$RUNNER_TEMP/release"
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: site
+          wranglerVersion: "4"
+          command: deploy
+
+      - name: Check the live update.json
+        run: |
+          sleep 5
+          curl -fsS "${SITE_URL%/}/update.json" | jq -e .version

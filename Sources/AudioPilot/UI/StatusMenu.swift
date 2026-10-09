@@ -169,6 +169,13 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         menu.addItem(recentItem)
 
         menu.addItem(.separator())
+        if model.updater.enabled {
+            menu.addItem(ActionItem("Check for Updates…") { [weak self] in
+                self?.model.settingsPane = .general
+                self?.openSettings?()
+                self?.model.updater.check()
+            })
+        }
         let settings = ActionItem("Settings…") { [weak self] in self?.openSettings?() }
         settings.keyEquivalent = ","
         menu.addItem(settings)

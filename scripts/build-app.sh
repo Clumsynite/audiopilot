@@ -5,6 +5,7 @@
 #   VERSION=1.2.3          CFBundleShortVersionString (default: the value in Resources/Info.plist)
 #   BUILD_NUMBER=42        CFBundleVersion            (default: number of git commits, else 1)
 #   SIGN_IDENTITY="Developer ID Application: …"   sign with hardened runtime (default: ad-hoc "-")
+#   SIGN_IDENTITY="Apple Development: …"          sign without notarization; macOS keeps permissions across updates
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -50,6 +51,8 @@ fi
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 if [[ "$SIGN_IDENTITY" == "-" ]]; then
     codesign --force --sign - --timestamp=none build/AudioPilot.app
+elif [[ "$SIGN_IDENTITY" != *"Developer ID"* ]]; then
+    codesign --force --sign "$SIGN_IDENTITY" --timestamp=none build/AudioPilot.app
 else
     codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp \
         --entitlements Resources/AudioPilot.entitlements build/AudioPilot.app

@@ -6,6 +6,10 @@ heading into the release version, and the Release workflow publishes the section
 ## Unreleased
 
 ### Added
+- AudioPilot updates itself: it checks its download site every few hours, verifies the signed update, and installs
+  it when no app is using the mic (or at quit), then shows what's new. Settings › General › Updates turns this off
+  or checks by hand. Versions up to 0.2.1 need this one installed by hand.
+- A download site with the latest version and this changelog.
 - Pick the mute and unmute sounds from the macOS system sounds in **Settings › General › Feedback**, with a
   button to hear each one.
 

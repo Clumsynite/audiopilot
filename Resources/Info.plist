@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>APUpdatePublicKey</key>
+	<string>vsLpTNdxd2dPDXSwho/xWMxW9jyrl5XZ1WccMaWjc/0=</string>
+	<key>APUpdateURL</key>
+	<string>https://audiopilot.clusmsyknight.workers.dev/update.json</string>
 	<key>CFBundleDisplayName</key>
 	<string>AudioPilot</string>
 	<key>CFBundleExecutable</key>

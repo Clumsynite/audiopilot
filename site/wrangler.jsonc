@@ -1,0 +1,12 @@
+{
+  // A static site: the download page, the release files and update.json, which the app checks.
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "audiopilot",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}

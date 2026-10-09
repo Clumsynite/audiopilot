@@ -233,6 +233,10 @@ public struct Preferences: Equatable, Sendable, Codable {
     public var muteSound: String = "Bottle"
     public var unmuteSound: String = "Tink"
     public var launchAtLogin: Bool = false
+    /// Look for a newer release on the download site every few hours.
+    public var autoCheckUpdates: Bool = true
+    /// Download what the check finds and install it when nothing would be interrupted, or at quit.
+    public var autoInstallUpdates: Bool = true
     public var paletteHotkey: HotKeySpec = .palette
     /// Raw value of the app's panel theme.
     public var theme: String = "glass"
@@ -295,7 +299,7 @@ public struct Preferences: Equatable, Sendable, Codable {
 
     enum CodingKeys: String, CodingKey {
         case version, inputPriority, outputPriority, knownDevices, appRules, hotkey, hotkeyMode
-        case autoSwitchEnabled, systemSoundFollowsOutput, showHUD, playSound, muteSound, unmuteSound, launchAtLogin
+        case autoSwitchEnabled, systemSoundFollowsOutput, showHUD, playSound, muteSound, unmuteSound, launchAtLogin, autoCheckUpdates, autoInstallUpdates
         case paletteHotkey, theme, startMuted, muteOnLock, showMutedOverlay, announceSwitches
         case deviceShortcuts, spotlightEnabled, deviceSettings, notifyExternalMuteChanges, autoMuteOnCallStart, autoMuteApps
         case profiles, activeProfileID, outputGroups, extraTrigger, levelMeter, airPodsMute, meetingSync
@@ -320,6 +324,8 @@ public struct Preferences: Equatable, Sendable, Codable {
         muteSound = try c.decodeIfPresent(String.self, forKey: .muteSound) ?? d.muteSound
         unmuteSound = try c.decodeIfPresent(String.self, forKey: .unmuteSound) ?? d.unmuteSound
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
+        autoCheckUpdates = try c.decodeIfPresent(Bool.self, forKey: .autoCheckUpdates) ?? d.autoCheckUpdates
+        autoInstallUpdates = try c.decodeIfPresent(Bool.self, forKey: .autoInstallUpdates) ?? d.autoInstallUpdates
         // v1 → v2: the default mute shortcut changed from ⌃⌥⌘M to ⌘⇧M.
         if version < 2 {
             if hotkey == .legacyDefault { hotkey = .default }

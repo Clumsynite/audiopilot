@@ -51,13 +51,11 @@ Bluetooth headsets out of low-quality "call mode", and mutes every mic with one 
 
 ## Install
 
-1. Download **`AudioPilot-<version>.dmg`** from the [latest release](../../releases/latest).
-   (This repository is private: you need access to it, or run `gh release download -R Clumsynite/audiopilot -p '*.dmg'`.)
+1. Download **`AudioPilot-<version>.dmg`** from <https://audiopilot.clusmsyknight.workers.dev>.
 2. Open the disk image and drag **AudioPilot** to **Applications**.
 3. Open AudioPilot from Applications. A mic icon appears in the menu bar (there's no Dock icon).
 
-**First launch of an unsigned build.** Releases are ad-hoc signed unless the Developer ID secrets are
-configured (see [Releasing](#releasing)). macOS then says it can't verify the app. Click **Done**, open
+**First launch.** Releases aren't notarized (that needs a paid Developer ID), so macOS says it can't verify the app. Click **Done**, open
 **System Settings › Privacy & Security**, scroll down and click **Open Anyway** next to AudioPilot.
 Alternatively, in Terminal:
 
@@ -65,9 +63,10 @@ Alternatively, in Terminal:
 xattr -dr com.apple.quarantine /Applications/AudioPilot.app
 ```
 
-**Updating:** quit AudioPilot, drag the new version over the old one, and open it again. Settings are kept.
-An ad-hoc signed update may ask again for permissions you already gave. What changed in each version is in
-[CHANGELOG.md](CHANGELOG.md).
+**Updating:** AudioPilot checks the site every few hours, downloads a new version, verifies it, and installs it
+when no app is using the mic and no per-app audio is playing (or when you quit). Turn that off, or check by hand,
+in **Settings › General › Updates**. Settings and permissions are kept. Versions up to 0.2.1 can't update
+themselves: install the next one by hand. What changed in each version is in [CHANGELOG.md](CHANGELOG.md).
 
 **Permissions** — AudioPilot only asks when you turn on a feature that needs one:
 
@@ -169,17 +168,32 @@ scripts/bump-version.sh minor      # or patch / major / 1.4.0 — dates the CHAN
 git push origin HEAD --follow-tags
 ```
 
-The tag starts the **Release** workflow. It checks the tag is on `main` and matches `Info.plist`, tests, builds,
-packages `AudioPilot-X.Y.Z.dmg` + `.zip` with SHA-256 sums, and publishes a GitHub Release whose notes are the
-version's CHANGELOG section (plus a generated commit list). The build number is the commit count.
+The tag starts the **Release** workflow. It checks the tag is on `main` and matches `Info.plist`, tests, builds and
+signs, packages `AudioPilot-X.Y.Z.dmg` + `.zip` with SHA-256 sums, writes `update.json` (version, build, zip
+digest, notes) with an Ed25519 signature, and publishes a GitHub Release whose notes are the version's CHANGELOG
+section. A second job deploys the download site (`site/`, built by `scripts/build-site.sh`) to Cloudflare Workers
+with that release's files; installed copies read `update.json` from there, so the repository can stay private. Run
+the workflow by hand to redeploy the site after changing it. The build number is the commit count, and decides what's newer.
 
-**CI** runs on every push to any branch and on pull requests: build, unit tests, the app bundle, a check that
-`Info.plist` has every permission usage string and that the README badge and CHANGELOG match the version, a smoke
-run of the read-only diagnostics, and a downloadable `.dmg` artifact.
+**How updates are checked.** The app accepts `update.json` only with a valid signature from the key whose public
+half is `APUpdatePublicKey` in `Info.plist`, then only a newer build served over https from the same site. The zip
+must match the signed digest, and the unpacked app must have the same bundle ID, the promised build, and a valid
+signature meeting the running copy's designated requirement. A small script swaps it in after AudioPilot quits.
 
-To ship signed and notarized builds (no Gatekeeper prompt), add these repository secrets:
-`DEVELOPER_ID_P12` (base64 of a Developer ID Application `.p12`), `DEVELOPER_ID_P12_PASSWORD`, `APPLE_ID`,
-`APPLE_TEAM_ID` and `APPLE_APP_PASSWORD` (an app-specific password). Without them releases are ad-hoc signed.
+**One-time setup:** the Cloudflare secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`), then
+`scripts/setup-release-secrets.sh`, which stores `UPDATE_SIGNING_KEY` (from `~/.config/audiopilot/update-signing-key`;
+back that file up, losing it means installed copies can't update) and your code signing identity as `SIGNING_P12`
+and `SIGNING_P12_PASSWORD`. A free "Apple Development" identity is enough: it gives every build the same signing
+identity, so macOS keeps permissions across updates. Without it, builds are ad-hoc signed and macOS asks again
+after each update.
+
+**CI** runs on every push to any branch and on pull requests: a gitleaks scan of the full history, build, unit
+tests, the app bundle, a check that `Info.plist` has every permission usage string and that the README badge and
+CHANGELOG match the version, a smoke run of the read-only diagnostics, a site build, and a downloadable `.dmg`
+artifact. Dependabot proposes Swift package and GitHub Actions updates weekly.
+
+With a paid Developer ID instead, set `SIGNING_P12` to that identity and add `APPLE_ID`, `APPLE_TEAM_ID` and
+`APPLE_APP_PASSWORD` (an app-specific password) to notarize, so there's no Gatekeeper prompt at all.
 
 ## Known limitations
 
@@ -188,7 +202,10 @@ To ship signed and notarized builds (no Gatekeeper prompt), add these repository
 - Apps that open a Bluetooth mic directly (not via the default input) can still switch a headset to call quality.
 - Teams sync toggles with ⌘⇧M and can drift if you also mute inside Teams.
 - Per-app audio starts within about a second of an app starting to play, so the very start of a sound can play
-  unchanged. It can't send an app to a multi-output group, and macOS may show a recording indicator while an app
-  is rerouted (AudioPilot captures the app's sound to replay it). If AudioPilot quits, apps play normally again.
+  unchanged. It can't send an app to a multi-output group. While an app is rerouted, macOS lists AudioPilot under
+  System Audio Recording: the capture runs in a helper process that exists only while something is rerouted, so the
+  listing goes about 20 seconds after the app stops playing or as soon as per-app audio is turned off. The helper
+  only accepts AudioPilot as its parent and never sends audio anywhere but the chosen output. If AudioPilot quits,
+  apps play normally again.
 - The menu bar level meter opens the default input while another app is using the mic; if that app uses a
   different mic, the meter shows the default one.
