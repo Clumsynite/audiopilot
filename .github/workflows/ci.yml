@@ -13,6 +13,10 @@ concurrency:
 jobs:
   gitleaks:
     runs-on: ubuntu-latest
+    # The action lists a PR's commits; Dependabot PRs get a read-only token, so it can't comment.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v5
         with:
@@ -20,6 +24,7 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false
 
   build-and-test:
     # Xcode 27 image (macOS 26 SDK APIs such as Liquid Glass). Switch to macos-26 if you prefer the GA image.
