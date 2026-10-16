@@ -73,7 +73,7 @@ jobs:
         run: SITE_URL=https://audiopilot.example.invalid scripts/build-site.sh
 
       - name: Upload build
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: AudioPilot-${{ github.sha }}
           path: dist/*
